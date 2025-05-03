@@ -1,0 +1,27 @@
+.centeredContainer {
+  height: 100vh;
+  background-color: #ffffff;
+}
+
+.centeredContent {
+  width: 100%;
+  max-width: 800px;
+  height: 100vh;
+}
+
+.splitContainer {
+  height: 100vh;
+}
+
+.splitContent {
+  width: 100%;
+}
+
+.chatPanel {
+  width: 400px;
+  border-right: 1px solid #dee2e6;
+}
+
+.workspacePanel {
+  flex: 1;
+}

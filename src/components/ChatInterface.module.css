@@ -1,0 +1,28 @@
+.chatContainer {
+  height: 100%;
+  max-width: 800px;
+}
+
+.messageContainer {
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.messageWrapper {
+  max-width: 70%;
+}
+
+.userMessage {
+  background-color: #007bff;
+  color: white;
+  border-radius: 1rem;
+  padding: 0.75rem 1rem;
+}
+
+.assistantMessage {
+  background-color: #e9ecef;
+  color: black;
+  border-radius: 1rem;
+  padding: 0.75rem 1rem;
+}

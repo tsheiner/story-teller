@@ -1,0 +1,36 @@
+.mainContainer {
+  height: 100vh;
+  background-color: #ffffff;
+}
+
+.contentWrapper {
+  width: 100%;
+}
+
+.chatPanel {
+  width: 800px;
+  transition: width 0.3s ease;
+  margin: 0 auto;
+}
+
+.chatPanelWithWorkspace {
+  width: 400px;
+  margin: 0;
+  border-right: 1px solid #dee2e6;
+}
+
+.workspacePanel {
+  flex: 1;
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.visible {
+  width: auto;
+  opacity: 1;
+}
+
+.hidden {
+  width: 0;
+  opacity: 0;
+}
