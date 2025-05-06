@@ -3,6 +3,13 @@
   max-width: 800px;
 }
 
+.resizableTextarea {
+  resize: none;
+  overflow: hidden;
+  /* height: 38px !important; */
+  transition: height 0.1s ease;
+}
+
 .messageContainer {
   background-color: #f8f9fa;
   border-radius: 8px;
