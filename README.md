@@ -1,6 +1,9 @@
-# AI System Manager Prototype
+# Storyteller: Designing Conversations in 3 Dimensions
 
-This prototype demonstrates an AI-assisted interface for system management and monitoring. It uses Claude (via Anthropic's API) to provide intelligent assistance in a context-aware environment.
+This application enables you to tune AI experiences by controlling 3 inputs: 
+1. __model role:__ what role the model should play in your experience? what kind of expert, with what kinds of capabilities?
+2. __persona:__ who is the model talking to?
+3. __scenario__: what are the initial conditions for the conversation?
 
 ## Overview
 
