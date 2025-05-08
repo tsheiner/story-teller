@@ -1,7 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import { Container, Form, Button } from 'react-bootstrap';
+import { Container, Form, Button, Spinner } from 'react-bootstrap';
+import ReactMarkdown from 'react-markdown';
 import styles from './ChatInterface.module.css';
 import { ClaudeService, ChatMessage } from '../services/ClaudeService';
+import { ChartParserService } from '../services/ChartParserService';
+import { WorkspaceUpdateEvent } from './Workspace';
 
 export function ChatInterface() {
   // Messages will reset on page refresh since we're not persisting them
@@ -14,9 +17,62 @@ export function ChatInterface() {
   // Added for debugging
   const isFirstRender = useRef(true);
 
+  // Create a ref for the latest user message
+  const latestUserMessageRef = useRef<HTMLDivElement>(null);
+  // Track when user is manually scrolling
+  const [userIsScrolling, setUserIsScrolling] = useState(false);
+  // Track if we've already scrolled to the latest message
+  const hasScrolledToLatestMessage = useRef(false);
+  // Track the last processed message count to detect new messages
+  const lastMessageCount = useRef(0);
+  
+  // Scroll to bottom of chat
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!userIsScrolling) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   };
+  
+  // Scroll to position the latest user message at the top of the visible area
+  const scrollToLatestUserMessage = () => {
+    if (latestUserMessageRef.current && !userIsScrolling) {
+      console.log('Executing scroll to position message at top');
+      
+      // Force immediate scroll with 'auto' behavior
+      latestUserMessageRef.current.scrollIntoView({ 
+        behavior: "auto",  // Use "auto" for immediate scrolling
+        block: "start"     // Position at top
+      });
+      
+      // Mark as scrolled to avoid duplicate scrolling
+      hasScrolledToLatestMessage.current = true;
+      
+      // Log scroll completed
+      console.log('Scroll completed');
+    } else {
+      console.log('Could not scroll - ref missing or user scrolling');
+    }
+  };
+
+  // Track when user manually scrolls
+  useEffect(() => {
+    const handleUserScroll = () => {
+      setUserIsScrolling(true);
+      
+      // Reset after 2 seconds of no scrolling
+      const timer = setTimeout(() => {
+        setUserIsScrolling(false);
+      }, 2000);
+      
+      return () => clearTimeout(timer);
+    };
+    
+    const container = document.querySelector(`.${styles.messageContainer}`);
+    if (container) {
+      container.addEventListener('scroll', handleUserScroll);
+      return () => container.removeEventListener('scroll', handleUserScroll);
+    }
+  }, []);
 
   // Add debug component for first message and setup context
   useEffect(() => {
@@ -34,8 +90,43 @@ export function ChatInterface() {
         }
       })();
     }
-    scrollToBottom();
-  }, [messages]);
+  }, []);
+  
+  // Handle new messages and scrolling
+  useEffect(() => {
+    // Log state for debugging
+    console.log('Messages or loading state changed:', {
+      messageCount: messages.length,
+      lastCount: lastMessageCount.current,
+      isLoading,
+      hasScrolled: hasScrolledToLatestMessage.current
+    });
+    
+    // We have a new user message if:
+    // 1. Message count increased
+    // 2. We're now in loading state (waiting for AI)
+    // 3. Last message is from user
+    const hasNewUserMessage = 
+      messages.length > lastMessageCount.current && 
+      isLoading && 
+      messages.length > 0 && 
+      messages[messages.length - 1].role === 'user';
+    
+    // Update last message count
+    lastMessageCount.current = messages.length;
+    
+    if (hasNewUserMessage) {
+      console.log('New user message detected - scrolling to position it at top');
+      // Reset scroll flag 
+      hasScrolledToLatestMessage.current = false;
+      
+      // Small timeout to ensure the DOM has updated
+      setTimeout(() => {
+        scrollToLatestUserMessage();
+        hasScrolledToLatestMessage.current = true;
+      }, 50);
+    }
+  }, [messages, isLoading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,13 +138,28 @@ export function ChatInterface() {
       timestamp: new Date()
     };
 
+    // Save current messages count to determine if this is a new conversation
+    const isFirstMessage = messages.length === 0;
+    
+    // Update state
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
+    
+    // Reset textarea height after submission
+    const textarea = document.querySelector(`.${styles.resizableTextarea}`) as HTMLTextAreaElement;
+    if (textarea) {
+      textarea.style.height = '38px';
+    }
+    
+    // Reset the scrolled flag to ensure we scroll to the new message
+    hasScrolledToLatestMessage.current = false;
+    
+    // Log for debugging
+    console.log('Message submitted, reset scroll flag. isFirstMessage:', isFirstMessage);
 
     try {
-      // Check if this is the first message in the conversation
-      const isFirstMessage = messages.length === 0;
+      // Log if this is the first message in the conversation
       console.log('Is first message in conversation:', isFirstMessage);
       
       // Pass messages to Claude service
@@ -63,9 +169,27 @@ export function ChatInterface() {
       const response = await claudeService.current.sendMessage(messagesToSend);
       console.log('Received response from Claude', response.substring(0, 50) + '...');
       
+      // Process the response to extract chart commands
+      const { processedContent, extractedCharts } = ChartParserService.processMessage(response);
+      console.log('Processed Claude response, found', extractedCharts.length, 'charts');
+      
+      // If charts were found, dispatch events to update the workspace
+      if (extractedCharts.length > 0) {
+        extractedCharts.forEach(chart => {
+          console.log('Dispatching chart to workspace:', chart.title);
+          const event = new CustomEvent<WorkspaceUpdateEvent>('workspace-update', {
+            detail: {
+              type: 'add-chart',
+              payload: chart
+            }
+          });
+          window.dispatchEvent(event);
+        });
+      }
+      
       const assistantMessage: ChatMessage = {
         role: 'assistant',
-        content: response,
+        content: processedContent, // Use the processed content without chart commands
         timestamp: new Date()
       };
 
@@ -81,16 +205,39 @@ export function ChatInterface() {
   return (
     <Container className={`d-flex flex-column ${styles.chatContainer}`}>
       <div className={`flex-grow-1 overflow-auto mb-3 ${styles.messageContainer}`}>
-        {messages.map((msg, index) => (
-          <div
-            key={index}
-            className={`d-flex ${msg.role === 'user' ? 'justify-content-end' : 'justify-content-start'} mb-3`}
-          >
-            <div className={`${styles.messageWrapper} ${msg.role === 'user' ? styles.userMessage : styles.assistantMessage}`}>
-              {msg.content}
+        {messages.map((msg, index) => {
+          // Check if this is the latest user message
+          const isLatestUserMessage = 
+            msg.role === 'user' && 
+            index === messages.length - (isLoading ? 1 : 2);
+          
+          return (
+            <div
+              key={index}
+              className={styles.messageWrapper}
+              ref={isLatestUserMessage ? latestUserMessageRef : undefined}
+            >
+              <div className={msg.role === 'user' ? styles.userMessage : styles.assistantMessage}>
+                {msg.role === 'user' ? (
+                  msg.content
+                ) : (
+                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+                )}
+              </div>
             </div>
+          );
+        })}
+        
+        {/* Loading spinner shown while waiting for AI response */}
+        {isLoading && (
+          <div className={styles.loadingContainer}>
+            <Spinner animation="border" role="status" variant="primary" size="sm">
+              <span className="visually-hidden">Loading...</span>
+            </Spinner>
+            <span className={styles.loadingText}>Claude is thinking...</span>
           </div>
-        ))}
+        )}
+        
         <div ref={messagesEndRef} />
       </div>
 
@@ -108,12 +255,18 @@ export function ChatInterface() {
             onInput={(e) => {
               const target = e.target as HTMLTextAreaElement;
               target.style.height = '38px';
-              target.style.height = `${target.scrollHeight}px`;
+              target.style.height = `${Math.min(target.scrollHeight, 300)}px`;
             }}
             onFocus={(e) => {
               const target = e.target as HTMLTextAreaElement;
               target.style.height = '38px';
-              target.style.height = `${target.scrollHeight}px`;
+              target.style.height = `${Math.min(target.scrollHeight, 300)}px`;
+            }}
+            onBlur={(e) => {
+              // Reset height when losing focus if no content
+              if (!e.currentTarget.value.trim()) {
+                e.currentTarget.style.height = '38px';
+              }
             }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
@@ -122,7 +275,18 @@ export function ChatInterface() {
               }
             }}
           />
-          <Button type="submit" variant="primary" disabled={isLoading}>
+          <Button 
+            type="submit" 
+            variant="primary" 
+            disabled={isLoading}
+            style={{ 
+              backgroundColor: '#007bff', 
+              borderColor: '#007bff',
+              fontFamily: 'Roboto Mono, monospace',
+              fontSize: '11pt',
+              padding: '8px 16px'
+            }}
+          >
             {isLoading ? 'Sending...' : 'Send'}
           </Button>
         </Form.Group>

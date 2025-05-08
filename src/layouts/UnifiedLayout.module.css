@@ -1,20 +1,32 @@
 .mainContainer {
   height: 100vh;
+  width: 100vw;
   background-color: #ffffff;
+  overflow: hidden;
+  padding: 0;
+  margin: 0;
+  max-width: 100%;
 }
 
 .contentWrapper {
   width: 100%;
+  display: flex;
+  height: 100%;
+  max-width: 100%;
 }
 
 .chatPanel {
   width: 800px;
   transition: width 0.3s ease;
   margin: 0 auto;
+  height: 100%;
+  overflow-y: auto;
 }
 
 .chatPanelWithWorkspace {
-  width: 400px;
+  width: 450px;
+  min-width: 450px;
+  max-width: 450px;
   margin: 0;
   border-right: 1px solid #dee2e6;
 }
@@ -22,7 +34,8 @@
 .workspacePanel {
   flex: 1;
   transition: all 0.3s ease;
-  overflow: hidden;
+  overflow: auto;
+  height: 100%;
 }
 
 .visible {
@@ -33,4 +46,5 @@
 .hidden {
   width: 0;
   opacity: 0;
+  display: none;
 }

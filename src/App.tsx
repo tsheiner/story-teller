@@ -22,7 +22,7 @@ function App() {
         style={{
           position: 'fixed',
           top: '1rem',
-          right: '1rem',
+          left: '460px',
           zIndex: 1000
         }}
       >
@@ -30,7 +30,6 @@ function App() {
       </Button>
 
       <UnifiedLayout
-        context={defaultProjectContext}
         chatPanel={<ChatInterface />}
         workspacePanel={<Workspace />}
         isWorkspaceVisible={isWorkspaceVisible}
