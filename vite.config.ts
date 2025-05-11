@@ -14,10 +14,18 @@ export default defineConfig({
     middlewares: [
       (req, res, next) => {
         // Check if this is a request for directory listing
-        if (req.url?.startsWith('/api/list-files')) {
-          console.log('API request received:', req.url);
-          const url = new URL(req.url, 'http://localhost');
-          const dirPath = url.searchParams.get('dir');
+        // Note: Raw req.url might not include full URL, so we need to handle it differently
+        const reqUrl = req.url || '';
+        console.log('Request received:', reqUrl);
+        
+        if (reqUrl && reqUrl.includes('/api/list-files')) {
+          console.log('API request detected!');
+          
+          // Extract the dir parameter directly from the URL string
+          const dirMatch = reqUrl.match(/dir=(.*?)(&|$)/);
+          const dirPath = dirMatch ? dirMatch[1] : null;
+          
+          console.log('Extracted dir path:', dirPath);
           
           console.log('Directory path requested:', dirPath);
           
@@ -45,10 +53,12 @@ export default defineConfig({
               
               console.log('Filtered MD files:', mdFiles);
               
-              // Send JSON response
+              // Send JSON response - stringify properly
+              const responseData = mdFiles;
               res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify(mdFiles));
-              console.log('Response sent:', mdFiles);
+              const jsonResponse = JSON.stringify(responseData);
+              res.end(jsonResponse);
+              console.log('Response sent:', jsonResponse);
               return;
             } catch (error) {
               console.error(`Error reading directory ${dirPath}:`, error);

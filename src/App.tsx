@@ -31,8 +31,54 @@ function App() {
   useEffect(() => {
     const loadContextOptions = async () => {
       try {
+        // Debug: Test the API endpoints directly 
+        console.log('Testing direct API calls...');
+        
+        try {
+          const rolesResponse = await fetch('/api/list-files?dir=context/roles');
+          const rolesText = await rolesResponse.text();
+          console.log('Direct API call for roles raw response:', rolesText);
+          try {
+            const roles = JSON.parse(rolesText);
+            console.log('Direct API call for roles parsed:', roles);
+          } catch (parseError) {
+            console.error('Failed to parse roles response:', parseError);
+          }
+        } catch (e) {
+          console.error('Direct API roles fetch failed:', e);
+        }
+        
+        try {
+          const personasResponse = await fetch('/api/list-files?dir=context/personas');
+          const personasText = await personasResponse.text();
+          console.log('Direct API call for personas raw response:', personasText);
+          try {
+            const personas = JSON.parse(personasText);
+            console.log('Direct API call for personas parsed:', personas);
+          } catch (parseError) {
+            console.error('Failed to parse personas response:', parseError);
+          }
+        } catch (e) {
+          console.error('Direct API personas fetch failed:', e);
+        }
+        
+        try {
+          const scenariosResponse = await fetch('/api/list-files?dir=context/scenarios');
+          const scenariosText = await scenariosResponse.text();
+          console.log('Direct API call for scenarios raw response:', scenariosText);
+          try {
+            const scenarios = JSON.parse(scenariosText);
+            console.log('Direct API call for scenarios parsed:', scenarios);
+          } catch (parseError) {
+            console.error('Failed to parse scenarios response:', parseError);
+          }
+        } catch (e) {
+          console.error('Direct API scenarios fetch failed:', e);
+        }
+        
         // Load available contexts from directories
         const contexts = await claudeService.current.loadAvailableContexts();
+        console.log('Loaded available contexts:', contexts);
         setAvailableContexts(contexts);
         
         // Restore selections from localStorage
@@ -59,21 +105,30 @@ function App() {
   
   // Handle context changes
   const handleRoleChange = async (role: string) => {
+    console.log(`App: Changing role to ${role}`);
     setSelectedRole(role);
+    // Load the new context and rebuild the system prompt
     await claudeService.current.loadRoleContext(role);
     StorageService.saveSelectedRole(role);
+    console.log("Role context updated");
   };
   
   const handlePersonaChange = async (persona: string) => {
+    console.log(`App: Changing persona to ${persona}`);
     setSelectedPersona(persona);
+    // Load the new context and rebuild the system prompt
     await claudeService.current.loadPersonaContext(persona);
     StorageService.saveSelectedPersona(persona);
+    console.log("Persona context updated");
   };
   
   const handleScenarioChange = async (scenario: string) => {
+    console.log(`App: Changing scenario to ${scenario}`);
     setSelectedScenario(scenario);
+    // Load the new context and rebuild the system prompt
     await claudeService.current.loadScenarioContext(scenario);
     StorageService.saveSelectedScenario(scenario);
+    console.log("Scenario context updated");
   };
 
   return (
