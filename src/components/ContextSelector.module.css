@@ -1,0 +1,30 @@
+.contextSelectorContainer {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 20px;
+  background-color: #f8f9fa;
+  border-top: 1px solid #dee2e6;
+  width: 100%;
+}
+
+.selectorGroup {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 12px;
+  width: 100%;
+}
+
+.selectorGroup label {
+  font-size: 12px;
+  margin-bottom: 5px;
+  font-weight: bold;
+  color: #495057;
+}
+
+.selectorGroup select {
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid #ced4da;
+  font-size: 14px;
+  background-color: white;
+}

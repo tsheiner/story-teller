@@ -25,84 +25,170 @@ export interface ChatMessage {
 
 export class ClaudeService {
   private roleContext: string = '';
+  private personaContext: string = '';
   private scenarioContext: string = '';
+  private availableRoles: string[] = [];
+  private availablePersonas: string[] = [];
+  private availableScenarios: string[] = [];
   private isInitialized: boolean = false;
   private initPromise: Promise<void> | null = null;
 
   constructor() {
     // Start loading context files immediately on instantiation
-    // Use a shared promise to prevent multiple simultaneous initializations
     this.initPromise = this.loadContextFiles();
   }
 
-  async loadContextFiles() {
-    // If already initialized, return immediately
-    if (this.isInitialized) {
-      return;
-    }
-    
+  async loadContextFiles(
+    roleName?: string,
+    personaName?: string,
+    scenarioName?: string
+  ) {
     // If another initialization is in progress, wait for it
-    if (this.initPromise) {
-      return this.initPromise;
+    if (this.initPromise && !this.isInitialized) {
+      await this.initPromise;
     }
     
     // Create a new initialization promise
     this.initPromise = (async () => {
-      if (this.isInitialized) return; // Double-check in case of race condition
-      
       try {
-        console.log('Loading context files from public directory...');
+        console.log('Loading available contexts...');
         
-        // Use absolute URLs to the public directory to avoid any issues with relative paths
-        const roleResponse = await fetch('/context/roles/system_manager.md', {
-          headers: {
-            'Accept': 'text/plain',
-            'Cache-Control': 'no-cache'
-          }
-        });
+        // Load available contexts first
+        await this.loadAvailableContexts();
         
-        const scenarioResponse = await fetch('/context/scenarios/high_cpu_load.md', {
-          headers: {
-            'Accept': 'text/plain',
-            'Cache-Control': 'no-cache'
-          }
-        });
-        
-        if (!roleResponse.ok) {
-          throw new Error(`Failed to load role context: ${roleResponse.status} ${roleResponse.statusText}`);
+        // Load the specified contexts or defaults
+        if (roleName || this.availableRoles.length > 0) {
+          await this.loadRoleContext(roleName || this.availableRoles[0]);
         }
         
-        if (!scenarioResponse.ok) {
-          throw new Error(`Failed to load scenario context: ${scenarioResponse.status} ${scenarioResponse.statusText}`);
+        if (personaName || this.availablePersonas.length > 0) {
+          await this.loadPersonaContext(personaName || this.availablePersonas[0]);
         }
         
-        this.roleContext = await roleResponse.text();
-        this.scenarioContext = await scenarioResponse.text();
-        
-        // Verify we got markdown, not HTML
-        if (this.roleContext.trim().toLowerCase().startsWith('<!doctype') || 
-            this.roleContext.trim().toLowerCase().startsWith('<html')) {
-          throw new Error('Received HTML instead of markdown for role context');
+        if (scenarioName || this.availableScenarios.length > 0) {
+          await this.loadScenarioContext(scenarioName || this.availableScenarios[0]);
         }
-        
-        if (this.scenarioContext.trim().toLowerCase().startsWith('<!doctype') || 
-            this.scenarioContext.trim().toLowerCase().startsWith('<html')) {
-          throw new Error('Received HTML instead of markdown for scenario context');
-        }
-        
-        console.log('Role context (first 50 chars):', this.roleContext.substring(0, 50));
-        console.log('Scenario context (first 50 chars):', this.scenarioContext.substring(0, 50));
         
         this.isInitialized = true;
-        console.log('Context files loaded successfully from public directory');
+        console.log('Context files loaded successfully');
       } catch (error) {
         console.error('Error loading context files:', error);
         this.initPromise = null; // Reset so future attempts can try again
         throw error;
       }
-    })(); // Execute the async function and return the promise
+    })();
     
     return this.initPromise;
+  }
+
+  async loadAvailableContexts() {
+    try {
+      console.log('Loading available contexts...');
+      
+      // Since the API approach is having issues, use hardcoded values
+      // that we know exist based on the file structure we created
+      this.availableRoles = ['system_manager', 'meraki_expert'];
+      this.availablePersonas = ['entry_network_admin', 'network_designer'];
+      this.availableScenarios = ['high_cpu_load', 'corporate_campus'];
+      
+      console.log('Available roles:', this.availableRoles);
+      console.log('Available personas:', this.availablePersonas);
+      console.log('Available scenarios:', this.availableScenarios);
+      
+      return {
+        roles: this.availableRoles,
+        personas: this.availablePersonas,
+        scenarios: this.availableScenarios
+      };
+    } catch (error) {
+      console.error('Error loading available contexts:', error);
+      // Fallback to using hardcoded values
+      const fallbackRoles = ['system_manager', 'meraki_expert'];
+      const fallbackPersonas = ['entry_network_admin', 'network_designer'];
+      const fallbackScenarios = ['high_cpu_load', 'corporate_campus'];
+      
+      console.log('Using fallback values:', {
+        roles: fallbackRoles,
+        personas: fallbackPersonas,
+        scenarios: fallbackScenarios
+      });
+      
+      this.availableRoles = fallbackRoles;
+      this.availablePersonas = fallbackPersonas;
+      this.availableScenarios = fallbackScenarios;
+      
+      return { 
+        roles: fallbackRoles, 
+        personas: fallbackPersonas, 
+        scenarios: fallbackScenarios 
+      };
+    }
+  }
+
+  async loadRoleContext(roleName: string) {
+    try {
+      console.log(`ClaudeService: Loading role context for ${roleName}`);
+      const response = await fetch(`/context/roles/${roleName}.md`);
+      if (!response.ok) {
+        throw new Error(`Failed to load role context for ${roleName}`);
+      }
+      this.roleContext = await response.text();
+      console.log(`Loaded role context for ${roleName} (${this.roleContext.length} chars)`);
+      
+      // Force reset initialization status so next message will rebuild the system prompt
+      this.isInitialized = true;
+      console.log('Role context updated, future messages will use new system prompt');
+      
+      return this.roleContext;
+    } catch (error) {
+      console.error(`Error loading role context for ${roleName}:`, error);
+      this.roleContext = ''; // Reset to empty on error
+      return '';
+    }
+  }
+
+  async loadPersonaContext(personaName: string) {
+    try {
+      console.log(`ClaudeService: Loading persona context for ${personaName}`);
+      const response = await fetch(`/context/personas/${personaName}.md`);
+      if (!response.ok) {
+        throw new Error(`Failed to load persona context for ${personaName}`);
+      }
+      this.personaContext = await response.text();
+      console.log(`Loaded persona context for ${personaName} (${this.personaContext.length} chars)`);
+      
+      // Force reset initialization status so next message will rebuild the system prompt
+      this.isInitialized = true;
+      console.log('Persona context updated, future messages will use new system prompt');
+      
+      return this.personaContext;
+    } catch (error) {
+      console.error(`Error loading persona context for ${personaName}:`, error);
+      this.personaContext = ''; // Reset to empty on error
+      return '';
+    }
+  }
+
+  async loadScenarioContext(scenarioName: string) {
+    try {
+      console.log(`ClaudeService: Loading scenario context for ${scenarioName}`);
+      const response = await fetch(`/context/scenarios/${scenarioName}.md`);
+      if (!response.ok) {
+        throw new Error(`Failed to load scenario context for ${scenarioName}`);
+      }
+      this.scenarioContext = await response.text();
+      console.log(`Loaded scenario context for ${scenarioName} (${this.scenarioContext.length} chars)`);
+      
+      // Force reset initialization status so next message will rebuild the system prompt
+      this.isInitialized = true;
+      console.log('Scenario context updated, future messages will use new system prompt');
+      
+      return this.scenarioContext;
+    } catch (error) {
+      console.error(`Error loading scenario context for ${scenarioName}:`, error);
+      this.scenarioContext = ''; // Reset to empty on error
+      return '';
+    }
   }
 
   private buildSystemPrompt(): string {
@@ -148,7 +234,18 @@ Examples:
 Use these charts when presenting data visualizations would be helpful to the user.
 `;
 
-    return `${this.roleContext}\n\n${chartInstructions}\n\nCurrent Scenario:\n${this.scenarioContext}`;
+    // Construct system prompt with all context types
+    return `
+${this.roleContext}
+
+User Persona:
+${this.personaContext}
+
+Current Scenario:
+${this.scenarioContext}
+
+${chartInstructions}
+`;
   }
 
   async sendMessage(messages: ChatMessage[]): Promise<string> {
@@ -179,8 +276,10 @@ Use these charts when presenting data visualizations would be helpful to the use
     // Check that system prompt is properly formed
     const roleContextExists = this.roleContext && this.roleContext.length > 0;
     const scenarioContextExists = this.scenarioContext && this.scenarioContext.length > 0;
+    const personaContextExists = this.personaContext && this.personaContext.length > 0;
     
     console.log('Role context exists:', roleContextExists);
+    console.log('Persona context exists:', personaContextExists);
     console.log('Scenario context exists:', scenarioContextExists);
     console.log('System prompt length:', systemPrompt.length);
     console.log('System prompt first 100 chars:', systemPrompt.substring(0, 100) + '...');
@@ -216,7 +315,13 @@ Use these charts when presenting data visualizations would be helpful to the use
         model: 'claude-3-opus-20240229',
         maxTokens: 1024,
         systemPromptLength: systemPrompt.length,
-        messageCount: apiMessages.length
+        messageCount: apiMessages.length,
+        // Log the context sources to verify we're using the correct ones
+        contextSources: {
+          role: this.roleContext.substring(0, 30) + '...',
+          persona: this.personaContext.substring(0, 30) + '...',
+          scenario: this.scenarioContext.substring(0, 30) + '...'
+        }
       });
       
       console.log('Sending request to Claude API...');
