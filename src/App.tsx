@@ -13,7 +13,11 @@ function App() {
   const isWorkspaceVisible = true;
   
   // State for available options
-  const [availableContexts, setAvailableContexts] = useState({
+  const [availableContexts, setAvailableContexts] = useState<{
+    roles: string[];
+    personas: string[];
+    scenarios: string[];
+  }>({
     roles: [],
     personas: [],
     scenarios: []
@@ -137,7 +141,7 @@ function App() {
         chatPanel={
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             <div style={{ flex: 1, overflow: 'auto' }}>
-              <ChatInterface />
+              <ChatInterface claudeService={claudeService.current} />
             </div>
             <ContextSelector 
               availableContexts={availableContexts}
