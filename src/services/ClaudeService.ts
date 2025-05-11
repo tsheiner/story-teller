@@ -23,6 +23,12 @@ export interface ChatMessage {
   timestamp: Date;
 }
 
+export interface ContextOptions {
+  roles: string[];
+  personas: string[];
+  scenarios: string[];
+}
+
 export class ClaudeService {
   private roleContext: string = '';
   private personaContext: string = '';
@@ -54,19 +60,22 @@ export class ClaudeService {
         console.log('Loading available contexts...');
         
         // Load available contexts first
-        await this.loadAvailableContexts();
+        const contexts = await this.loadAvailableContexts();
         
         // Load the specified contexts or defaults
-        if (roleName || this.availableRoles.length > 0) {
-          await this.loadRoleContext(roleName || this.availableRoles[0]);
+        if (roleName || contexts.roles.length > 0) {
+          const roleToLoad = roleName || contexts.roles[0];
+          await this.loadRoleContext(roleToLoad);
         }
         
-        if (personaName || this.availablePersonas.length > 0) {
-          await this.loadPersonaContext(personaName || this.availablePersonas[0]);
+        if (personaName || contexts.personas.length > 0) {
+          const personaToLoad = personaName || contexts.personas[0];
+          await this.loadPersonaContext(personaToLoad);
         }
         
-        if (scenarioName || this.availableScenarios.length > 0) {
-          await this.loadScenarioContext(scenarioName || this.availableScenarios[0]);
+        if (scenarioName || contexts.scenarios.length > 0) {
+          const scenarioToLoad = scenarioName || contexts.scenarios[0];
+          await this.loadScenarioContext(scenarioToLoad);
         }
         
         this.isInitialized = true;
@@ -81,47 +90,41 @@ export class ClaudeService {
     return this.initPromise;
   }
 
-  async loadAvailableContexts() {
+  async loadAvailableContexts(): Promise<ContextOptions> {
     try {
-      console.log('Loading available contexts...');
+      console.log('Loading available contexts from API...');
       
-      // Since the API approach is having issues, use hardcoded values
-      // that we know exist based on the file structure we created
-      this.availableRoles = ['system_manager', 'meraki_expert'];
-      this.availablePersonas = ['entry_network_admin', 'network_designer'];
-      this.availableScenarios = ['high_cpu_load', 'corporate_campus'];
+      // Call the server endpoint to get the list of context files
+      const response = await fetch('/api/list-contexts');
+      if (!response.ok) {
+        throw new Error(`Failed to load context options, status: ${response.status}`);
+      }
       
-      console.log('Available roles:', this.availableRoles);
-      console.log('Available personas:', this.availablePersonas);
-      console.log('Available scenarios:', this.availableScenarios);
+      const options: ContextOptions = await response.json();
+      console.log('Loaded context options:', options);
       
-      return {
-        roles: this.availableRoles,
-        personas: this.availablePersonas,
-        scenarios: this.availableScenarios
-      };
+      // Update class state
+      this.availableRoles = options.roles;
+      this.availablePersonas = options.personas;
+      this.availableScenarios = options.scenarios;
+      
+      return options;
     } catch (error) {
       console.error('Error loading available contexts:', error);
       // Fallback to using hardcoded values
-      const fallbackRoles = ['system_manager', 'meraki_expert'];
-      const fallbackPersonas = ['entry_network_admin', 'network_designer'];
-      const fallbackScenarios = ['high_cpu_load', 'corporate_campus'];
-      
-      console.log('Using fallback values:', {
-        roles: fallbackRoles,
-        personas: fallbackPersonas,
-        scenarios: fallbackScenarios
-      });
-      
-      this.availableRoles = fallbackRoles;
-      this.availablePersonas = fallbackPersonas;
-      this.availableScenarios = fallbackScenarios;
-      
-      return { 
-        roles: fallbackRoles, 
-        personas: fallbackPersonas, 
-        scenarios: fallbackScenarios 
+      const fallbackOptions: ContextOptions = {
+        roles: ['system_manager', 'meraki_expert'],
+        personas: ['entry_network_admin', 'network_designer'],
+        scenarios: ['high_cpu_load', 'corporate_campus']
       };
+      
+      console.log('Using fallback values due to error:', fallbackOptions);
+      
+      this.availableRoles = fallbackOptions.roles;
+      this.availablePersonas = fallbackOptions.personas;
+      this.availableScenarios = fallbackOptions.scenarios;
+      
+      return fallbackOptions;
     }
   }
 

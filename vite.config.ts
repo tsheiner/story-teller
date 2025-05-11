@@ -14,58 +14,49 @@ export default defineConfig({
     middlewares: [
       (req, res, next) => {
         // Check if this is a request for directory listing
-        // Note: Raw req.url might not include full URL, so we need to handle it differently
         const reqUrl = req.url || '';
-        console.log('Request received:', reqUrl);
         
-        if (reqUrl && reqUrl.includes('/api/list-files')) {
-          console.log('API request detected!');
+        if (reqUrl && reqUrl.startsWith('/api/list-contexts')) {
+          console.log('[API] Listing context directories');
           
-          // Extract the dir parameter directly from the URL string
-          const dirMatch = reqUrl.match(/dir=(.*?)(&|$)/);
-          const dirPath = dirMatch ? dirMatch[1] : null;
-          
-          console.log('Extracted dir path:', dirPath);
-          
-          console.log('Directory path requested:', dirPath);
-          
-          if (dirPath) {
-            try {
-              // Get the absolute path within the public directory
-              const absolutePath = path.join(__dirname, 'public', dirPath);
-              console.log('Absolute path:', absolutePath);
+          try {
+            // Base directory for context files
+            const contextDir = path.join(__dirname, 'public', 'context');
+            
+            // Get lists of files from each directory
+            const roles = fs.readdirSync(path.join(contextDir, 'roles'))
+              .filter(file => file.toLowerCase().endsWith('.md'))
+              .map(file => file.slice(0, -3)); // Remove .md extension
               
-              // Check if directory exists
-              if (!fs.existsSync(absolutePath)) {
-                console.error(`Directory does not exist: ${absolutePath}`);
-                res.statusCode = 404;
-                res.end(JSON.stringify({ error: 'Directory not found' }));
-                return;
-              }
+            const personas = fs.readdirSync(path.join(contextDir, 'personas'))
+              .filter(file => file.toLowerCase().endsWith('.md'))
+              .map(file => file.slice(0, -3));
               
-              // Read directory contents
-              const allFiles = fs.readdirSync(absolutePath);
-              console.log('All files in directory:', allFiles);
-              
-              const mdFiles = allFiles
-                .filter(file => file.endsWith('.md'))
-                .map(file => file.replace('.md', ''));
-              
-              console.log('Filtered MD files:', mdFiles);
-              
-              // Send JSON response - stringify properly
-              const responseData = mdFiles;
-              res.setHeader('Content-Type', 'application/json');
-              const jsonResponse = JSON.stringify(responseData);
-              res.end(jsonResponse);
-              console.log('Response sent:', jsonResponse);
-              return;
-            } catch (error) {
-              console.error(`Error reading directory ${dirPath}:`, error);
-              res.statusCode = 500;
-              res.end(JSON.stringify({ error: 'Failed to read directory', details: error.message }));
-              return;
-            }
+            const scenarios = fs.readdirSync(path.join(contextDir, 'scenarios'))
+              .filter(file => file.toLowerCase().endsWith('.md'))
+              .map(file => file.slice(0, -3));
+            
+            // Create response object
+            const result = { roles, personas, scenarios };
+            
+            // Set response headers
+            res.setHeader('Content-Type', 'application/json');
+            res.statusCode = 200;
+            
+            // Send response
+            res.end(JSON.stringify(result));
+            
+            console.log('[API] Sent context files list:', result);
+            return;
+          } catch (error) {
+            console.error('[API] Error listing context files:', error);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ 
+              error: 'Failed to list context files',
+              details: error instanceof Error ? error.message : String(error) 
+            }));
+            return;
           }
         }
         

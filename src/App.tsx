@@ -35,52 +35,7 @@ function App() {
   useEffect(() => {
     const loadContextOptions = async () => {
       try {
-        // Debug: Test the API endpoints directly 
-        console.log('Testing direct API calls...');
-        
-        try {
-          const rolesResponse = await fetch('/api/list-files?dir=context/roles');
-          const rolesText = await rolesResponse.text();
-          console.log('Direct API call for roles raw response:', rolesText);
-          try {
-            const roles = JSON.parse(rolesText);
-            console.log('Direct API call for roles parsed:', roles);
-          } catch (parseError) {
-            console.error('Failed to parse roles response:', parseError);
-          }
-        } catch (e) {
-          console.error('Direct API roles fetch failed:', e);
-        }
-        
-        try {
-          const personasResponse = await fetch('/api/list-files?dir=context/personas');
-          const personasText = await personasResponse.text();
-          console.log('Direct API call for personas raw response:', personasText);
-          try {
-            const personas = JSON.parse(personasText);
-            console.log('Direct API call for personas parsed:', personas);
-          } catch (parseError) {
-            console.error('Failed to parse personas response:', parseError);
-          }
-        } catch (e) {
-          console.error('Direct API personas fetch failed:', e);
-        }
-        
-        try {
-          const scenariosResponse = await fetch('/api/list-files?dir=context/scenarios');
-          const scenariosText = await scenariosResponse.text();
-          console.log('Direct API call for scenarios raw response:', scenariosText);
-          try {
-            const scenarios = JSON.parse(scenariosText);
-            console.log('Direct API call for scenarios parsed:', scenarios);
-          } catch (parseError) {
-            console.error('Failed to parse scenarios response:', parseError);
-          }
-        } catch (e) {
-          console.error('Direct API scenarios fetch failed:', e);
-        }
-        
-        // Load available contexts from directories
+        // Load available contexts from the API
         const contexts = await claudeService.current.loadAvailableContexts();
         console.log('Loaded available contexts:', contexts);
         setAvailableContexts(contexts);
