@@ -1,7 +1,6 @@
 .contextSelectorContainer {
   display: flex;
-  flex-direction: row;
-  justify-content: space-between;
+  flex-direction: column;
   padding: 10px 20px;
   background-color: #f8f9fa;
   border-top: 1px solid #dee2e6;
@@ -11,8 +10,8 @@
 .selectorGroup {
   display: flex;
   flex-direction: column;
-  margin-right: 15px;
-  flex: 1;
+  margin-bottom: 12px;
+  width: 100%;
 }
 
 .selectorGroup label {

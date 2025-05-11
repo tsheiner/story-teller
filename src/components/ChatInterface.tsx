@@ -14,6 +14,7 @@ export function ChatInterface() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const claudeService = useRef(new ClaudeService());
   
+  
   // Added for debugging
   const isFirstRender = useRef(true);
 
@@ -74,24 +75,15 @@ export function ChatInterface() {
     }
   }, []);
 
-  // Add debug component for first message and setup context
+  // Basic component initialization
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
       console.log('First render of ChatInterface');
-      
-      // Initialize Claude service
-      (async () => {
-        try {
-          await claudeService.current.loadContextFiles();
-          console.log('Context files loaded successfully');
-        } catch (error) {
-          console.error('Failed to load context files:', error);
-        }
-      })();
     }
   }, []);
   
+
   // Handle new messages and scrolling
   useEffect(() => {
     // Log state for debugging
@@ -290,6 +282,7 @@ export function ChatInterface() {
             {isLoading ? 'Sending...' : 'Send'}
           </Button>
         </Form.Group>
+        
       </Form>
     </Container>
   );

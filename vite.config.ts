@@ -15,27 +15,45 @@ export default defineConfig({
       (req, res, next) => {
         // Check if this is a request for directory listing
         if (req.url?.startsWith('/api/list-files')) {
+          console.log('API request received:', req.url);
           const url = new URL(req.url, 'http://localhost');
           const dirPath = url.searchParams.get('dir');
+          
+          console.log('Directory path requested:', dirPath);
           
           if (dirPath) {
             try {
               // Get the absolute path within the public directory
               const absolutePath = path.join(__dirname, 'public', dirPath);
+              console.log('Absolute path:', absolutePath);
+              
+              // Check if directory exists
+              if (!fs.existsSync(absolutePath)) {
+                console.error(`Directory does not exist: ${absolutePath}`);
+                res.statusCode = 404;
+                res.end(JSON.stringify({ error: 'Directory not found' }));
+                return;
+              }
               
               // Read directory contents
-              const files = fs.readdirSync(absolutePath)
+              const allFiles = fs.readdirSync(absolutePath);
+              console.log('All files in directory:', allFiles);
+              
+              const mdFiles = allFiles
                 .filter(file => file.endsWith('.md'))
                 .map(file => file.replace('.md', ''));
               
+              console.log('Filtered MD files:', mdFiles);
+              
               // Send JSON response
               res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify(files));
+              res.end(JSON.stringify(mdFiles));
+              console.log('Response sent:', mdFiles);
               return;
             } catch (error) {
               console.error(`Error reading directory ${dirPath}:`, error);
               res.statusCode = 500;
-              res.end(JSON.stringify({ error: 'Failed to read directory' }));
+              res.end(JSON.stringify({ error: 'Failed to read directory', details: error.message }));
               return;
             }
           }
