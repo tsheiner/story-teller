@@ -191,6 +191,13 @@ export class ClaudeService {
     }
   }
 
+  public hasLoadedContexts(): boolean {
+    return this.isInitialized && 
+           this.roleContext.length > 0 &&
+           this.personaContext.length > 0 &&
+           this.scenarioContext.length > 0;
+  }
+
   private buildSystemPrompt(): string {
     const chartInstructions = `
 Workspace Capabilities:
@@ -255,6 +262,13 @@ ${chartInstructions}
       await this.loadContextFiles();
     }
 
+    // Add detailed context logging right before building the system prompt
+    console.log("=== CONTEXT CHECK BEFORE SENDING MESSAGE ===");
+    console.log("Role context (first 100 chars):", this.roleContext.substring(0, 100));
+    console.log("Persona context (first 100 chars):", this.personaContext.substring(0, 100));
+    console.log("Scenario context (first 100 chars):", this.scenarioContext.substring(0, 100));
+    console.log("================================================");
+
     const systemPrompt = this.buildSystemPrompt();
     
     // Debug logging for investigation
@@ -291,12 +305,12 @@ ${chartInstructions}
     if (messages.length === 0) {
       console.log('Empty messages array detected, adding initialization message');
       apiMessages = [{
-        role: 'user',
+        role: 'user' as "user", // Explicitly typed
         content: 'Hello'
       }];
     } else {
       apiMessages = messages.map(msg => ({
-        role: msg.role,
+        role: msg.role as "user" | "assistant", // Explicitly cast to the expected literal types
         content: msg.content
       }));
     }
@@ -342,7 +356,11 @@ ${chartInstructions}
     } catch (error) {
       console.error('Error calling Claude API:', error);
       console.error('Error details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
-      return `Error: Unable to get response from Claude API. ${error.message || 'Unknown error'}`;
+      let errorMessage = 'Unknown error';
+      if (error && typeof error === 'object' && 'message' in error) {
+        errorMessage = error.message as string;
+      }
+      return `Error: Unable to get response from Claude API. ${errorMessage}`;
     }
   }
 }
