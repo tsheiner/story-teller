@@ -12,6 +12,9 @@ function App() {
   // Always show workspace
   const isWorkspaceVisible = true;
   
+  // State for context selector visibility
+  const [showContext, setShowContext] = useState(true);
+  
   // State for available options
   const [availableContexts, setAvailableContexts] = useState<{
     roles: string[];
@@ -89,6 +92,11 @@ function App() {
     StorageService.saveSelectedScenario(scenario);
     console.log("Scenario context updated");
   };
+  
+  // Toggle context selector visibility
+  const toggleContext = () => {
+    setShowContext(!showContext);
+  };
 
   return (
     <>
@@ -96,17 +104,23 @@ function App() {
         chatPanel={
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             <div style={{ flex: 1, overflow: 'auto' }}>
-              <ChatInterface claudeService={claudeService.current} />
+              <ChatInterface 
+                claudeService={claudeService.current}
+                onToggleContext={toggleContext}
+                showContext={showContext}
+              />
             </div>
-            <ContextSelector 
-              availableContexts={availableContexts}
-              selectedRole={selectedRole}
-              selectedPersona={selectedPersona}
-              selectedScenario={selectedScenario}
-              onRoleChange={handleRoleChange}
-              onPersonaChange={handlePersonaChange}
-              onScenarioChange={handleScenarioChange}
-            />
+            <div style={{ display: showContext ? 'block' : 'none' }}>
+              <ContextSelector 
+                availableContexts={availableContexts}
+                selectedRole={selectedRole}
+                selectedPersona={selectedPersona}
+                selectedScenario={selectedScenario}
+                onRoleChange={handleRoleChange}
+                onPersonaChange={handlePersonaChange}
+                onScenarioChange={handleScenarioChange}
+              />
+            </div>
           </div>
         }
         workspacePanel={<Workspace />}

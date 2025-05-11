@@ -8,9 +8,15 @@ import { WorkspaceUpdateEvent } from './Workspace';
 
 interface ChatInterfaceProps {
   claudeService: ClaudeService;
+  onToggleContext: () => void;
+  showContext: boolean;
 }
 
-export function ChatInterface({ claudeService }: ChatInterfaceProps) {
+export function ChatInterface({ 
+  claudeService, 
+  onToggleContext, 
+  showContext 
+}: ChatInterfaceProps) {
   // Messages will reset on page refresh since we're not persisting them
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -165,6 +171,31 @@ export function ChatInterface({ claudeService }: ChatInterfaceProps) {
           </Button>
         </Form.Group>
         
+        <Button
+          variant="link"
+          onClick={onToggleContext}
+          className="text-muted"
+          style={{
+            border: 'none',
+            backgroundColor: 'transparent',
+            fontSize: '12px',
+            padding: '0',
+            margin: '0 0 0 12px',
+            textAlign: 'left',
+            fontFamily: 'Roboto Mono, monospace',
+            display: 'block',
+            width: 'auto',
+            textDecoration: 'none'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.textDecoration = 'underline';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.textDecoration = 'none';
+          }}
+        >
+          {showContext ? 'Hide Context ⌃' : 'Show Context ⌵'}
+        </Button>
       </Form>
     </Container>
   );
