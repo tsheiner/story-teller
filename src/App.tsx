@@ -13,7 +13,7 @@ function App() {
   const isWorkspaceVisible = true;
   
   // State for context selector visibility
-  const [showContext, setShowContext] = useState(true);
+  const [showContext, setShowContext] = useState(false);
   
   // State for available options
   const [availableContexts, setAvailableContexts] = useState<{
