@@ -5,7 +5,7 @@ import { ChatInterface } from './components/ChatInterface'
 import { Workspace } from './components/Workspace'
 import { UnifiedLayout } from './layouts/UnifiedLayout'
 import { ContextSelector } from './components/ContextSelector'
-import { ClaudeServiceAdapter } from './services/ClaudeServiceAdapter'
+import { AIServiceManager } from './services/AIServiceManager'
 import { IAIService } from './services/IAIService'
 import { StorageService } from './services/StorageService'
 
@@ -33,8 +33,8 @@ function App() {
   const [selectedScenario, setSelectedScenario] = useState('');
   const [selectedModel, setSelectedModel] = useState('');
   
-  // Reference to AI service (using abstraction now)
-  const aiService = useRef<IAIService>(new ClaudeServiceAdapter());
+  // Reference to AI service (now using the manager that handles both Claude and Cisco)
+  const aiService = useRef<IAIService>(new AIServiceManager());
   
   // Load available contexts and restore selections
   useEffect(() => {
@@ -50,7 +50,7 @@ function App() {
         const restoredPersona = StorageService.getSelectedPersona(contexts.personas);
         const restoredScenario = StorageService.getSelectedScenario(contexts.scenarios);
         
-        // Get available model IDs from the AI service
+        // Get available model IDs from the AI service (now includes both Claude and Cisco models)
         const availableModels = aiService.current.getAvailableModels();
         const availableModelIds = availableModels.map(model => model.id);
         const restoredModel = StorageService.getSelectedModel(availableModelIds);
@@ -105,7 +105,7 @@ function App() {
   const handleModelChange = (model: string) => {
     console.log(`App: Changing model to ${model}`);
     setSelectedModel(model);
-    // Update the model in AI service
+    // Update the model in AI service (this will automatically switch between Claude and Cisco)
     aiService.current.setModel(model);
     StorageService.saveSelectedModel(model);
     console.log("Model selection updated");
