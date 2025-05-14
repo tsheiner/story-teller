@@ -33,7 +33,6 @@ export function ChatInterface({
   useEffect(() => {
     scrollToBottom();
   }, [messages, streamingMessage]);
-
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

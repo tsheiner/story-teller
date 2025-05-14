@@ -1,5 +1,6 @@
 import { ChangeEvent } from 'react';
 import styles from './ContextSelector.module.css';
+import { ModelOption } from '../services/ClaudeService';
 
 export interface ContextSelectorProps {
   availableContexts: {
@@ -7,22 +8,28 @@ export interface ContextSelectorProps {
     personas: string[];
     scenarios: string[];
   };
+  availableModels: ModelOption[];
   selectedRole: string;
   selectedPersona: string;
   selectedScenario: string;
+  selectedModel: string;
   onRoleChange: (role: string) => void;
   onPersonaChange: (persona: string) => void;
   onScenarioChange: (scenario: string) => void;
+  onModelChange: (model: string) => void;
 }
 
 export function ContextSelector({
   availableContexts,
+  availableModels,
   selectedRole,
   selectedPersona,
   selectedScenario,
+  selectedModel,
   onRoleChange,
   onPersonaChange,
-  onScenarioChange
+  onScenarioChange,
+  onModelChange
 }: ContextSelectorProps) {
   const handleRoleChange = (e: ChangeEvent<HTMLSelectElement>) => {
     onRoleChange(e.target.value);
@@ -34,6 +41,10 @@ export function ContextSelector({
   
   const handleScenarioChange = (e: ChangeEvent<HTMLSelectElement>) => {
     onScenarioChange(e.target.value);
+  };
+  
+  const handleModelChange = (e: ChangeEvent<HTMLSelectElement>) => {
+    onModelChange(e.target.value);
   };
   
   return (
@@ -84,6 +95,27 @@ export function ContextSelector({
           ) : (
             availableContexts.scenarios.map(scenario => (
               <option key={scenario} value={scenario}>{scenario}</option>
+            ))
+          )}
+        </select>
+      </div>
+      
+      <hr className={styles.divider} />
+      
+      <div className={styles.selectorGroup}>
+        <label>AI Model:</label>
+        <select 
+          value={selectedModel} 
+          onChange={handleModelChange}
+          disabled={availableModels.length === 0}
+        >
+          {availableModels.length === 0 ? (
+            <option value="">No models available</option>
+          ) : (
+            availableModels.map(model => (
+              <option key={model.id} value={model.id}>
+                {model.name} - {model.description}
+              </option>
             ))
           )}
         </select>

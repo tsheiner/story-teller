@@ -29,17 +29,70 @@ export interface ContextOptions {
   scenarios: string[];
 }
 
+export interface ModelOption {
+  id: string;
+  name: string;
+  description: string;
+}
+
 export class ClaudeService {
+  // Define available Claude models
+  public static readonly AVAILABLE_MODELS: ModelOption[] = [
+    { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', description: 'Most powerful model with highest quality' },
+    { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet', description: 'Balance of intelligence and speed' },
+    { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku', description: 'Fastest model, optimized for quick responses' }
+  ];
+
   private roleContext: string = '';
   private personaContext: string = '';
   private scenarioContext: string = '';
   private generalInstructions: string = '';  // New property for general instructions
-  // Add underscore prefix to indicate these are primarily for internal tracking
-  private _availableRoles: string[] = [];
-  private _availablePersonas: string[] = [];
-  private _availableScenarios: string[] = [];
+  private availableRoles: string[] = [];
+  private availablePersonas: string[] = [];
+  private availableScenarios: string[] = [];
+  private selectedModel: string = 'claude-3-opus-20240229'; // Default model
   private isInitialized: boolean = false;
   private initPromise: Promise<void> | null = null;
+
+  // Getter for selected model
+  public getSelectedModel(): string {
+    return this.selectedModel;
+  }
+
+  // Get available roles
+  public getAvailableRoles(): string[] {
+    return this.availableRoles;
+  }
+
+  // Get available personas
+  public getAvailablePersonas(): string[] {
+    return this.availablePersonas;
+  }
+
+  // Get available scenarios
+  public getAvailableScenarios(): string[] {
+    return this.availableScenarios;
+  }
+
+  // Setter for model selection
+  public setModel(modelId: string): void {
+    if (ClaudeService.AVAILABLE_MODELS.some(model => model.id === modelId)) {
+      // Only log if there's an actual change
+      if (this.selectedModel !== modelId) {
+        const oldModel = ClaudeService.AVAILABLE_MODELS.find(m => m.id === this.selectedModel);
+        const newModel = ClaudeService.AVAILABLE_MODELS.find(m => m.id === modelId);
+        
+        console.log('%c🔄 MODEL CHANGED', 'background: #4b0082; color: white; padding: 4px 8px; border-radius: 4px;');
+        console.log(`From: ${oldModel?.name || this.selectedModel}`);
+        console.log(`To: ${newModel?.name || modelId}`);
+        console.log(`Model ID: ${modelId}`);
+      }
+      
+      this.selectedModel = modelId;
+    } else {
+      console.error(`Invalid model ID: ${modelId}`);
+    }
+  }
 
   constructor() {
     // Start loading context files immediately on instantiation
@@ -126,9 +179,9 @@ export class ClaudeService {
       console.log('Loaded context options:', options);
       
       // Update class state
-      this._availableRoles = options.roles;
-      this._availablePersonas = options.personas;
-      this._availableScenarios = options.scenarios;
+      this.availableRoles = options.roles;
+      this.availablePersonas = options.personas;
+      this.availableScenarios = options.scenarios;
       
       return options;
     } catch (error) {
@@ -142,9 +195,9 @@ export class ClaudeService {
       
       console.log('Using fallback values due to error:', fallbackOptions);
       
-      this._availableRoles = fallbackOptions.roles;
-      this._availablePersonas = fallbackOptions.personas;
-      this._availableScenarios = fallbackOptions.scenarios;
+      this.availableRoles = fallbackOptions.roles;
+      this.availablePersonas = fallbackOptions.personas;
+      this.availableScenarios = fallbackOptions.scenarios;
       
       return fallbackOptions;
     }
@@ -313,7 +366,7 @@ ${this.scenarioContext}
       }
       
       console.log('API configuration:', {
-        model: 'claude-3-opus-20240229',
+        model: this.selectedModel,
         maxTokens: 1024,
         systemPromptLength: systemPrompt.length,
         messageCount: apiMessages.length,
@@ -328,9 +381,17 @@ ${this.scenarioContext}
       
       console.log('Sending request to Claude API...');
       
+      // Enhanced logging to verify model selection is working
+      const modelInfo = ClaudeService.AVAILABLE_MODELS.find(m => m.id === this.selectedModel) || 
+        { id: this.selectedModel, name: 'Unknown', description: 'Custom model' };
+      
+      console.log('🔍 USING MODEL: ' + this.selectedModel);
+      console.log(`📌 Model details: ${modelInfo.name} - ${modelInfo.description}`);
+      console.log(`📊 Request stats: ${apiMessages.length} messages, ${systemPrompt.length} chars in system prompt`);
+      
       // Non-streaming implementation kept for fallback
       const response = await anthropic.messages.create({
-        model: 'claude-3-opus-20240229',
+        model: this.selectedModel,
         max_tokens: 1024,
         system: systemPrompt,
         messages: apiMessages
@@ -340,6 +401,12 @@ ${this.scenarioContext}
       const content = response.content[0];
       if ('text' in content) {
         console.log('Response text (truncated):', content.text.substring(0, 100) + '...');
+        
+        // Log model details from the actual response
+        console.log(`%c✅ RESPONSE FROM MODEL: ${response.model}`, 'color: green; font-weight: bold;');
+        console.log(`🕒 Response time: ${new Date().toISOString()}`);
+        console.log(`💬 Response length: ${content.text.length} characters`);
+        
         return content.text;
       }
       throw new Error('Unexpected response format from Claude API');
@@ -391,18 +458,33 @@ ${this.scenarioContext}
       
       console.log('Sending streaming request to Claude API...');
       
+      // Enhanced logging to verify model selection is working
+      const modelInfo = ClaudeService.AVAILABLE_MODELS.find(m => m.id === this.selectedModel) || 
+        { id: this.selectedModel, name: 'Unknown', description: 'Custom model' };
+      
+      console.log('🔍 STREAMING USING MODEL: ' + this.selectedModel);
+      console.log(`📌 Model details: ${modelInfo.name} - ${modelInfo.description}`);
+      console.log(`📊 Stream request stats: ${apiMessages.length} messages, ${systemPrompt.length} chars in system prompt`);
+      
       // Using the stream method from Anthropic SDK
       const stream = await anthropic.messages.stream({
-        model: 'claude-3-opus-20240229',
+        model: this.selectedModel,
         max_tokens: 1024,
         system: systemPrompt,
         messages: apiMessages
       });
 
       let fullResponse = '';
+      let responseModel = '';
 
       // Process each chunk as it arrives
       for await (const chunk of stream) {
+        // Capture the model information when available
+        if (chunk.type === 'message_start') {
+          responseModel = chunk.message.model;
+          console.log(`%c🔄 STREAMING FROM MODEL: ${responseModel}`, 'color: blue; font-weight: bold;');
+        }
+        
         if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
           const textChunk = chunk.delta.text;
           fullResponse += textChunk;
@@ -412,6 +494,8 @@ ${this.scenarioContext}
       
       // Handle the full message for post-processing
       console.log('Streaming completed, full response length:', fullResponse.length);
+      console.log(`%c✅ COMPLETED STREAMING FROM MODEL: ${responseModel}`, 'color: green; font-weight: bold;');
+      console.log(`🕒 Response time: ${new Date().toISOString()}`);
       onComplete(fullResponse);
     } catch (error) {
       console.error('Error in streaming from Claude API:', error);
