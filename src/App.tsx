@@ -5,7 +5,8 @@ import { ChatInterface } from './components/ChatInterface'
 import { Workspace } from './components/Workspace'
 import { UnifiedLayout } from './layouts/UnifiedLayout'
 import { ContextSelector } from './components/ContextSelector'
-import { ClaudeService } from './services/ClaudeService'
+import { ClaudeServiceAdapter } from './services/ClaudeServiceAdapter'
+import { IAIService } from './services/IAIService'
 import { StorageService } from './services/StorageService'
 
 function App() {
@@ -32,15 +33,15 @@ function App() {
   const [selectedScenario, setSelectedScenario] = useState('');
   const [selectedModel, setSelectedModel] = useState('');
   
-  // Reference to ClaudeService
-  const claudeService = useRef(new ClaudeService());
+  // Reference to AI service (using abstraction now)
+  const aiService = useRef<IAIService>(new ClaudeServiceAdapter());
   
   // Load available contexts and restore selections
   useEffect(() => {
     const loadContextOptions = async () => {
       try {
-        // Load available contexts from the API
-        const contexts = await claudeService.current.loadAvailableContexts();
+        // Load available contexts from the AI service
+        const contexts = await aiService.current.loadAvailableContexts();
         console.log('Loaded available contexts:', contexts);
         setAvailableContexts(contexts);
         
@@ -49,8 +50,9 @@ function App() {
         const restoredPersona = StorageService.getSelectedPersona(contexts.personas);
         const restoredScenario = StorageService.getSelectedScenario(contexts.scenarios);
         
-        // Get available model IDs
-        const availableModelIds = ClaudeService.AVAILABLE_MODELS.map(model => model.id);
+        // Get available model IDs from the AI service
+        const availableModels = aiService.current.getAvailableModels();
+        const availableModelIds = availableModels.map(model => model.id);
         const restoredModel = StorageService.getSelectedModel(availableModelIds);
         
         // Set state with restored values
@@ -59,11 +61,11 @@ function App() {
         setSelectedScenario(restoredScenario);
         setSelectedModel(restoredModel);
         
-        // Initialize the Claude service with saved preferences
-        if (restoredRole) await claudeService.current.loadRoleContext(restoredRole);
-        if (restoredPersona) await claudeService.current.loadPersonaContext(restoredPersona);
-        if (restoredScenario) await claudeService.current.loadScenarioContext(restoredScenario);
-        if (restoredModel) claudeService.current.setModel(restoredModel);
+        // Initialize the AI service with saved preferences
+        if (restoredRole) await aiService.current.loadRoleContext(restoredRole);
+        if (restoredPersona) await aiService.current.loadPersonaContext(restoredPersona);
+        if (restoredScenario) await aiService.current.loadScenarioContext(restoredScenario);
+        if (restoredModel) aiService.current.setModel(restoredModel);
       } catch (error) {
         console.error('Error initializing app:', error);
       }
@@ -77,7 +79,7 @@ function App() {
     console.log(`App: Changing role to ${role}`);
     setSelectedRole(role);
     // Load the new context and rebuild the system prompt
-    await claudeService.current.loadRoleContext(role);
+    await aiService.current.loadRoleContext(role);
     StorageService.saveSelectedRole(role);
     console.log("Role context updated");
   };
@@ -86,7 +88,7 @@ function App() {
     console.log(`App: Changing persona to ${persona}`);
     setSelectedPersona(persona);
     // Load the new context and rebuild the system prompt
-    await claudeService.current.loadPersonaContext(persona);
+    await aiService.current.loadPersonaContext(persona);
     StorageService.saveSelectedPersona(persona);
     console.log("Persona context updated");
   };
@@ -95,7 +97,7 @@ function App() {
     console.log(`App: Changing scenario to ${scenario}`);
     setSelectedScenario(scenario);
     // Load the new context and rebuild the system prompt
-    await claudeService.current.loadScenarioContext(scenario);
+    await aiService.current.loadScenarioContext(scenario);
     StorageService.saveSelectedScenario(scenario);
     console.log("Scenario context updated");
   };
@@ -103,8 +105,8 @@ function App() {
   const handleModelChange = (model: string) => {
     console.log(`App: Changing model to ${model}`);
     setSelectedModel(model);
-    // Update the model in Claude service
-    claudeService.current.setModel(model);
+    // Update the model in AI service
+    aiService.current.setModel(model);
     StorageService.saveSelectedModel(model);
     console.log("Model selection updated");
   };
@@ -121,7 +123,7 @@ function App() {
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             <div style={{ flex: 1, overflow: 'auto' }}>
               <ChatInterface 
-                claudeService={claudeService.current}
+                aiService={aiService.current}
                 onToggleContext={toggleContext}
                 showContext={showContext}
               />
@@ -129,7 +131,7 @@ function App() {
             <div style={{ display: showContext ? 'block' : 'none' }}>
               <ContextSelector 
                 availableContexts={availableContexts}
-                availableModels={ClaudeService.AVAILABLE_MODELS}
+                availableModels={aiService.current.getAvailableModels()}
                 selectedRole={selectedRole}
                 selectedPersona={selectedPersona}
                 selectedScenario={selectedScenario}

@@ -2,18 +2,18 @@ import { useState, useRef, useEffect } from 'react';
 import { Container, Form, Button, Spinner } from 'react-bootstrap';
 import ReactMarkdown from 'react-markdown';
 import styles from './ChatInterface.module.css';
-import { ClaudeService, ChatMessage } from '../services/ClaudeService';
+import { IAIService, ChatMessage } from '../services/IAIService';
 import { ChartParserService } from '../services/ChartParserService';
 import { WorkspaceUpdateEvent } from './Workspace';
 
 interface ChatInterfaceProps {
-  claudeService: ClaudeService;
+  aiService: IAIService;
   onToggleContext: () => void;
   showContext: boolean;
 }
 
 export function ChatInterface({ 
-  claudeService, 
+  aiService, 
   onToggleContext, 
   showContext 
 }: ChatInterfaceProps) {
@@ -62,9 +62,9 @@ export function ChatInterface({
       // Log if this is the first message in the conversation
       console.log('Is first message in conversation:', isFirstMessage);
       
-      // Pass messages to Claude service
+      // Pass messages to AI service
       const messagesToSend = [...messages, userMessage];
-      console.log('Sending', messagesToSend.length, 'messages to Claude');
+      console.log('Sending', messagesToSend.length, 'messages to AI service');
       
       // Initialize empty streaming message
       const initialStreamingMessage: ChatMessage = {
@@ -75,7 +75,7 @@ export function ChatInterface({
       setStreamingMessage(initialStreamingMessage);
       
       // Use streaming API
-      await claudeService.streamMessage(
+      await aiService.streamMessage(
         messagesToSend,
         // Handle each chunk as it arrives
         (chunk: string) => {
@@ -89,16 +89,16 @@ export function ChatInterface({
         },
         // Handle complete response
         (fullResponse: string) => {
-          console.log('Received complete response from Claude');
+          console.log('Received complete response from AI service');
           
           // Log the full response to debug table parsing issues
-          console.log('=== FULL CLAUDE RESPONSE ===');
+          console.log('=== FULL AI RESPONSE ===');
           console.log(fullResponse);
-          console.log('=== END CLAUDE RESPONSE ===');
+          console.log('=== END AI RESPONSE ===');
 
           // Process the response to extract chart and table commands
           const { processedContent, extractedCharts } = ChartParserService.processMessage(fullResponse);
-          console.log('Processed Claude response, found', extractedCharts.length, 'visualizations');
+          console.log('Processed AI response, found', extractedCharts.length, 'visualizations');
           console.log('Extracted visualizations:', extractedCharts);
           
           // If visualizations were found, dispatch events to update the workspace
@@ -126,7 +126,7 @@ export function ChatInterface({
               }
             });
           } else {
-            console.log('No visualizations found in Claude response');
+            console.log('No visualizations found in AI response');
           }
           
           // Add the complete message to the chat history and clear streaming message
