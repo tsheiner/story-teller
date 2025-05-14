@@ -1,11 +1,8 @@
 import { ChartConfig } from "../components/ChartComponent";
 
-// Define multiple patterns to catch different table formats
-const TABLE_PATTERNS = [
-  /{{table:\s*([\s\S]*?)\s*}}/g,  // Standard format
-  /\{\{table:\s*\n([\s\S]*?)\}\}/g,  // Newline after colon
-  /\{\{ *table *:\s*([\s\S]*?)\s*\}\}/g,  // With spaces around table
-];
+// Define a single flexible pattern to catch all table formats
+// This pattern accounts for variations in spacing, newlines, and formatting
+const TABLE_PATTERN = /\{\{\s*table\s*:\s*([\s\S]*?)\s*\}\}/g;
 
 // Define a regex pattern to match chart commands
 const CHART_PATTERN = /{{chart:(line|bar|column|pie|area|scatter)(?:\s*\n|\s+)([\s\S]*?)}}/g;
@@ -53,39 +50,42 @@ export class ChartParserService {
       }
     }
     
-    // Try all table patterns
-    for (const pattern of TABLE_PATTERNS) {
-      pattern.lastIndex = 0; // Reset regex state
-      while ((match = pattern.exec(content)) !== null) {
-        try {
-          const tableConfigText = match[1];
-          console.log('Found table command with pattern, raw text:', tableConfigText);
-          
-          // Parse the table config text
-          const config = this.parseTableConfig(tableConfigText);
-          console.log('Parsed table config:', config);
-          
-          // Validate table config
-          if (!config.title || !config.columns || !config.data || config.columns.length === 0) {
-            console.error('Invalid table configuration:', config);
-            continue;
-          }
-          
-          // Generate a unique ID for the table
-          const id = `table-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-          
-          const tableConfig = {
-            id,
-            type: 'table' as const,
-            ...config
-          };
-          
-          console.log('Adding table to visualizations:', tableConfig);
-          visualizations.push(tableConfig);
-        } catch (error) {
-          console.error('Error parsing table command:', error);
-          console.error('Stack trace:', error);
+    // Reset regex state
+    TABLE_PATTERN.lastIndex = 0;
+    
+    // Use our single table pattern
+    while ((match = TABLE_PATTERN.exec(content)) !== null) {
+      try {
+        const tableConfigText = match[1];
+        console.log('Found table command, raw text:', tableConfigText);
+        
+        // Parse the table config text
+        const config = this.parseTableConfig(tableConfigText);
+        console.log('Parsed table config:', config);
+        
+        // Validate table config
+        if (!config.title || !config.columns || !config.data || config.columns.length === 0) {
+          console.error('Invalid table configuration:', config);
+          continue;
         }
+        
+        // Generate a more unique ID with timestamp + hash of content
+        // This prevents ID collisions by including content-based uniqueness
+        const timestamp = Date.now();
+        const contentHash = this.simpleHash(tableConfigText);
+        const id = `table-${timestamp}-${contentHash}`;
+        
+        const tableConfig = {
+          id,
+          type: 'table' as const,
+          ...config
+        };
+        
+        console.log('Adding table to visualizations:', tableConfig);
+        visualizations.push(tableConfig);
+      } catch (error) {
+        console.error('Error parsing table command:', error);
+        console.error('Stack trace:', error);
       }
     }
     
@@ -215,40 +215,204 @@ export class ChartParserService {
         }
       }
       
-      // Extract data - look for data block
-      const dataPattern = /data:\s*(\[[\s\S]*?\])/i;
+      // Special case: look for data section spanning multiple lines to end of config
+      // This is a more comprehensive approach to get the entire data block
+      const fullDataMatch = configText.match(/data:\s*(\[\s*\[[\s\S]*$)/i);
+      
+      if (fullDataMatch) {
+        console.log('Found full data section match, extracting properly');
+        // Extract just the data array by finding balanced brackets
+        let dataStr = fullDataMatch[1];
+        let bracketCount = 0;
+        let endIndex = 0;
+        
+        // Find the matching closing bracket for the outer array
+        for (let i = 0; i < dataStr.length; i++) {
+          if (dataStr[i] === '[') bracketCount++;
+          if (dataStr[i] === ']') bracketCount--;
+          
+          if (bracketCount === 0) {
+            endIndex = i + 1; // Include the closing bracket
+            break;
+          }
+        }
+        
+        if (endIndex > 0) {
+          dataStr = dataStr.substring(0, endIndex);
+          console.log('Extracted balanced data section:', dataStr);
+          // Now proceed with parsing this properly balanced data string
+          try {
+            // Clean up the data for JSON parsing
+            dataStr = dataStr.replace(/'/g, '"');
+            // Fix common formatting issues
+            dataStr = dataStr.replace(/,\s*\]/g, ']');
+            
+            const data = JSON.parse(dataStr);
+            if (Array.isArray(data)) {
+              config.data = data;
+              console.log('Successfully parsed balanced data array with', data.length, 'rows');
+              // Skip the rest of the data extraction since we've handled it
+              if (config.data.length > 0) {
+                console.log('Final data structure:', config.data);
+                console.log('=== END TABLE PARSING ===');
+                return config;
+              }
+            }
+          } catch (e) {
+            console.error('Error parsing balanced data section:', e);
+            // Continue to regular data extraction below
+          }
+        }
+      }
+      
+      // Regular fallback data pattern if the above approach fails
+      const dataPattern = /data:\s*(\[\s*\[[\s\S]*?\]\s*\])/i;
+      
+      console.log('Looking for data pattern in:', configText);
       const dataMatch = configText.match(dataPattern);
+      
       if (dataMatch) {
+        console.log('Data pattern matched:', dataMatch[0]);
+        
         try {
           // Clean up the data string
           let dataStr = dataMatch[1];
-          // Handle various quote styles and formats
-          dataStr = dataStr.replace(/'/g, '"');
-          config.data = JSON.parse(dataStr);
-          console.log('Found data:', config.data);
+          console.log('Raw data string:', dataStr);
+          
+          // Check if this looks like multiple rows (better estimate with nested arrays)
+          const rowCount = (dataStr.match(/\[\s*["']/g) || []).length;
+          console.log('Detected approximately', rowCount, 'row opening brackets');
+          
+          try {
+            // Clean and normalize the data string for better parsing
+            // Replace single quotes with double quotes
+            dataStr = dataStr.replace(/'/g, '"');
+            // Ensure commas between array elements are properly placed
+            dataStr = dataStr.replace(/\]\s*\[/g, '], [');
+            // Remove trailing commas which are invalid in JSON
+            dataStr = dataStr.replace(/,\s*\]/g, ']');
+            // Fix any potential extra spaces next to commas
+            dataStr = dataStr.replace(/\s+,\s+/g, ', ');
+            
+            console.log('Cleaned data string for parsing:', dataStr);
+            
+            const parsedData = JSON.parse(dataStr);
+            console.log('Parsed data JSON successfully:', parsedData);
+            console.log('Parsed data is array?', Array.isArray(parsedData));
+            console.log('Parsed data length:', parsedData.length);
+            
+            config.data = parsedData;
+            console.log('Final data structure:', config.data);
+          } catch (jsonError) {
+            console.error('JSON parse error:', jsonError.message);
+            throw jsonError; // Rethrow to trigger manual parsing
+          }
         } catch (e) {
           console.error('Error parsing data JSON:', e);
           console.error('Data string was:', dataMatch[1]);
           
           // Fallback: try to parse manually
           try {
-            const dataContent = dataMatch[1]
-              .replace(/^\s*\[\s*/, '') // Remove opening bracket
-              .replace(/\s*\]\s*$/, '') // Remove closing bracket
-              .split(/\],\s*\[/) // Split by row delimiters
-              .map(row => {
-                return row
-                  .replace(/^\s*\[\s*/, '') // Clean row start
-                  .replace(/\s*\]\s*$/, '') // Clean row end
-                  .split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/) // Split by comma (respecting quotes)
-                  .map(cell => cell.trim().replace(/^["']|["']$/g, '')); // Clean each cell
-              });
-            config.data = dataContent;
-            console.log('Manual data parsing result:', config.data);
+            console.log('Attempting manual parsing of data rows');
+            // Get the full data section
+            console.log('Looking for complete data section in raw content');
+            const fullDataMatch = configText.match(/data:\s*(\[\s*[\s\S]*?\]\s*\])\s*$/);
+            const rawData = fullDataMatch ? fullDataMatch[1] : dataMatch[1];
+            
+            console.log('Raw data for manual parsing:', rawData);
+            
+            // Extract rows directly from the complete data text
+            let rows = [];
+            
+            try {
+              // First, let's try to find all the row arrays in one go with regex
+              const rowMatches = Array.from(rawData.matchAll(/\[\s*"([^"]*)"(?:\s*,\s*"([^"]*)")*\s*\]/g));
+              if (rowMatches && rowMatches.length > 0) {
+                console.log('Found', rowMatches.length, 'row matches with regex');
+                
+                rows = rowMatches.map(match => {
+                  // Each match is one row, extract all cells using a dedicated regex
+                  const cellMatches = Array.from(match[0].matchAll(/"([^"]*)"/g));
+                  return cellMatches.map(cellMatch => cellMatch[1]);
+                });
+                
+                console.log('Extracted rows using regex pattern:', rows);
+              } else {
+                // If the regex approach didn't work, try a line-by-line approach
+                console.log('Using line-by-line parsing approach');
+                
+                // Remove whitespace and split by line
+                const lines = rawData.trim().split('\n');
+                console.log('Raw data split into', lines.length, 'lines');
+                
+                // Process each line that looks like a row
+                lines.forEach(line => {
+                  if (line.trim().startsWith('[') && line.includes('"')) {
+                    // This looks like a row definition
+                    try {
+                      // Try to parse the line as JSON
+                      let parsedLine = line.trim();
+                      
+                      // Ensure it has closing bracket
+                      if (!parsedLine.endsWith(']') && !parsedLine.endsWith('],')) {
+                        parsedLine += ']';
+                      }
+                      
+                      // Remove trailing comma if present
+                      parsedLine = parsedLine.replace(/,\s*$/, '');
+                      
+                      // Replace single quotes with double quotes
+                      parsedLine = parsedLine.replace(/'/g, '"');
+                      
+                      console.log('Attempting to parse row line:', parsedLine);
+                      const rowData = JSON.parse(parsedLine);
+                      rows.push(rowData);
+                    } catch (parseError) {
+                      console.error('Failed to parse row line:', line, parseError);
+                      
+                      // Last resort: manual string splitting
+                      const cells = line.match(/"([^"]*)"/g);
+                      if (cells) {
+                        rows.push(cells.map(cell => cell.replace(/^"|"$/g, '')));
+                      }
+                    }
+                  }
+                });
+                
+                console.log('Extracted rows using line-by-line parsing:', rows);
+              }
+            } catch (regexError) {
+              console.error('Error in manual row extraction:', regexError);
+              
+              // Ultimate fallback: try to parse the entire data blob
+              try {
+                console.log('Attempting to clean and parse full data blob');
+                
+                // Clean up the data string for better parsing chances
+                let cleanData = rawData.replace(/'/g, '"').replace(/,\s*\]/g, ']');
+                cleanData = cleanData.replace(/\]\s*,?\s*\[/g, '],[');
+                
+                // Try to parse the whole structure
+                const parsedData = JSON.parse(cleanData);
+                if (Array.isArray(parsedData) && parsedData.length > 0) {
+                  rows = parsedData;
+                  console.log('Successfully parsed full data blob:', rows);
+                }
+              } catch (fullParseError) {
+                console.error('Failed to parse full data blob:', fullParseError);
+              }
+            }
+            
+            console.log('Manually parsed rows:', rows);
+            console.log('Row count:', rows.length);
+            
+            config.data = rows;
           } catch (manualError) {
             console.error('Manual parsing also failed:', manualError);
           }
         }
+      } else {
+        console.error('No data pattern matched in table configuration');
       }
       
     } catch (error) {
@@ -269,19 +433,32 @@ export class ChartParserService {
     let result = content.replace(CHART_PATTERN, 
       (_, type) => `[Chart visualization created - Check the workspace panel]`);
     
-    // Replace table commands with placeholders using all patterns
-    for (const pattern of TABLE_PATTERNS) {
-      pattern.lastIndex = 0;
-      result = result.replace(pattern, 
-        () => `[Data table created - Check the workspace panel]`);
-    }
+    // Replace table commands with a placeholder using our single pattern
+    TABLE_PATTERN.lastIndex = 0;
+    result = result.replace(TABLE_PATTERN, 
+      () => `[Data table created - Check the workspace panel]`);
     
     return result;
   }
   
   /**
-   * Process a message to extract charts and tables, and update the message text
+   * A simple hashing function to generate a numeric hash from a string
+   * Used to create more unique IDs for tables
    */
+  private static simpleHash(str: string): number {
+    let hash = 0;
+    if (str.length === 0) return hash;
+    
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    
+    // Make sure the hash is positive and reasonably sized
+    return Math.abs(hash % 10000);
+  }
+
   static processMessage(content: string): { 
     processedContent: string; 
     extractedCharts: (ChartConfig | TableConfig)[] 

@@ -75,9 +75,11 @@ data: [
 **IMPORTANT**: 
 - Do not indent the title/columns/data lines
 - Use double quotes for all strings
-- Ensure proper JSON array formatting
+- Ensure proper JSON array formatting with nested arrays for EACH ROW
+- Always create multiple rows as separate arrays like: [["Row1Col1", "Row1Col2"], ["Row2Col1", "Row2Col2"]]
 - No trailing commas
-```
+- Each row must have the same number of columns
+- Always include at least 2 rows for better readability
 
 #### Data Table Examples
 
