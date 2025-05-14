@@ -33,6 +33,7 @@ export class ClaudeService {
   private roleContext: string = '';
   private personaContext: string = '';
   private scenarioContext: string = '';
+  private generalInstructions: string = '';  // New property for general instructions
   private availableRoles: string[] = [];
   private availablePersonas: string[] = [];
   private availableScenarios: string[] = [];
@@ -59,7 +60,10 @@ export class ClaudeService {
       try {
         console.log('Loading available contexts...');
         
-        // Load available contexts first
+        // Load general instructions first (always load these)
+        await this.loadGeneralInstructions();
+        
+        // Load available contexts
         const contexts = await this.loadAvailableContexts();
         
         // Load the specified contexts or defaults
@@ -88,6 +92,23 @@ export class ClaudeService {
     })();
     
     return this.initPromise;
+  }
+
+  async loadGeneralInstructions() {
+    try {
+      console.log('ClaudeService: Loading general instructions');
+      const response = await fetch('/context/general_instructions.md');
+      if (!response.ok) {
+        throw new Error(`Failed to load general instructions`);
+      }
+      this.generalInstructions = await response.text();
+      console.log(`Loaded general instructions (${this.generalInstructions.length} chars)`);
+      return this.generalInstructions;
+    } catch (error) {
+      console.error('Error loading general instructions:', error);
+      this.generalInstructions = ''; // Reset to empty on error
+      return '';
+    }
   }
 
   async loadAvailableContexts(): Promise<ContextOptions> {
@@ -198,54 +219,15 @@ export class ClaudeService {
     return this.isInitialized && 
            this.roleContext.length > 0 &&
            this.personaContext.length > 0 &&
-           this.scenarioContext.length > 0;
+           this.scenarioContext.length > 0 &&
+           this.generalInstructions.length > 0;  // Include general instructions in check
   }
 
   private buildSystemPrompt(): string {
-    const chartInstructions = `
-Workspace Capabilities:
-You can create interactive charts in the workspace panel using the following syntax:
-
-{{chart:TYPE
-  title: Chart Title
-  xAxis: X-Axis Label
-  yAxis: Y-Axis Label
-  data: [
-    {name: "Series 1", values: [10, 20, 30, 40, 50]},
-    {name: "Series 2", values: [15, 25, 35, 45, 55]}
-  ]
-}}
-
-Chart types available: line, bar, column, pie, area, scatter
-
-Examples:
-1. For a line chart showing CPU usage:
-{{chart:line
-  title: CPU Usage Over Time
-  xAxis: Time (minutes)
-  yAxis: CPU Usage (%)
-  data: [
-    {name: "Web Server", values: [65, 72, 78, 85, 92]},
-    {name: "Database", values: [42, 48, 53, 60, 65]}
-  ]
-}}
-
-2. For a bar chart showing memory allocation:
-{{chart:bar
-  title: Memory Allocation by Service
-  xAxis: Services
-  yAxis: Memory (GB)
-  data: [
-    {name: "Allocated", values: [8, 12, 15, 6, 9]},
-    {name: "Used", values: [6, 11, 12, 5, 7]}
-  ]
-}}
-
-Use these charts when presenting data visualizations would be helpful to the user.
-`;
-
     // Construct system prompt with all context types
     return `
+${this.generalInstructions}
+
 ${this.roleContext}
 
 User Persona:
@@ -253,8 +235,6 @@ ${this.personaContext}
 
 Current Scenario:
 ${this.scenarioContext}
-
-${chartInstructions}
 `;
   }
 
@@ -267,6 +247,7 @@ ${chartInstructions}
 
     // Add detailed context logging right before building the system prompt
     console.log("=== CONTEXT CHECK BEFORE SENDING MESSAGE ===");
+    console.log("General instructions (first 100 chars):", this.generalInstructions.substring(0, 100));
     console.log("Role context (first 100 chars):", this.roleContext.substring(0, 100));
     console.log("Persona context (first 100 chars):", this.personaContext.substring(0, 100));
     console.log("Scenario context (first 100 chars):", this.scenarioContext.substring(0, 100));
@@ -291,10 +272,12 @@ ${chartInstructions}
     }
     
     // Check that system prompt is properly formed
+    const generalInstructionsExists = this.generalInstructions && this.generalInstructions.length > 0;
     const roleContextExists = this.roleContext && this.roleContext.length > 0;
     const scenarioContextExists = this.scenarioContext && this.scenarioContext.length > 0;
     const personaContextExists = this.personaContext && this.personaContext.length > 0;
     
+    console.log('General instructions exist:', generalInstructionsExists);
     console.log('Role context exists:', roleContextExists);
     console.log('Persona context exists:', personaContextExists);
     console.log('Scenario context exists:', scenarioContextExists);
@@ -335,6 +318,7 @@ ${chartInstructions}
         messageCount: apiMessages.length,
         // Log the context sources to verify we're using the correct ones
         contextSources: {
+          general: this.generalInstructions.substring(0, 30) + '...',
           role: this.roleContext.substring(0, 30) + '...',
           persona: this.personaContext.substring(0, 30) + '...',
           scenario: this.scenarioContext.substring(0, 30) + '...'

@@ -1,20 +1,23 @@
 import { useState, useEffect } from 'react';
 import { Container, Alert } from 'react-bootstrap';
 import { ChartComponent, ChartConfig } from './ChartComponent';
+import { TableComponent, TableConfig } from './TableComponent';
 
 // Define a global event type for workspace updates
 export interface WorkspaceUpdateEvent {
-  type: 'add-chart' | 'clear-workspace';
+  type: 'add-chart' | 'add-table' | 'clear-workspace';
   payload?: any;
 }
 
 interface WorkspaceProps {
-  // Optional initial charts (for testing)
+  // Optional initial visualizations (for testing)
   initialCharts?: ChartConfig[];
+  initialTables?: TableConfig[];
 }
 
-export function Workspace({ initialCharts = [] }: WorkspaceProps) {
+export function Workspace({ initialCharts = [], initialTables = [] }: WorkspaceProps) {
   const [charts, setCharts] = useState<ChartConfig[]>(initialCharts);
+  const [tables, setTables] = useState<TableConfig[]>(initialTables);
   const [error, setError] = useState<string | null>(null);
 
   // Listen for workspace update events
@@ -44,8 +47,30 @@ export function Workspace({ initialCharts = [] }: WorkspaceProps) {
             }
           });
           setError(null);
+        } else if (event.detail.type === 'add-table') {
+          const tableConfig = event.detail.payload as TableConfig;
+          
+          // Validate the table config
+          if (!tableConfig.id || !tableConfig.type || !tableConfig.title) {
+            throw new Error('Invalid table configuration');
+          }
+          
+          // Add the table to our state
+          setTables(prevTables => {
+            // If table with this ID already exists, replace it, otherwise add it
+            const tableExists = prevTables.some(table => table.id === tableConfig.id);
+            if (tableExists) {
+              return prevTables.map(table => 
+                table.id === tableConfig.id ? tableConfig : table
+              );
+            } else {
+              return [...prevTables, tableConfig];
+            }
+          });
+          setError(null);
         } else if (event.detail.type === 'clear-workspace') {
           setCharts([]);
+          setTables([]);
           setError(null);
         }
       } catch (err) {
@@ -64,6 +89,8 @@ export function Workspace({ initialCharts = [] }: WorkspaceProps) {
     };
   }, []);
 
+  const hasContent = charts.length > 0 || tables.length > 0;
+
   return (
     <Container fluid className="h-100 bg-light p-3" style={{ minHeight: '100vh', overflowY: 'auto' }}>
       <div className="border rounded p-3 h-100 bg-white">
@@ -73,16 +100,24 @@ export function Workspace({ initialCharts = [] }: WorkspaceProps) {
           <Alert variant="danger">{error}</Alert>
         )}
         
-        {charts.length === 0 ? (
+        {!hasContent ? (
           <p className="text-muted">
             This area will display dynamic content, visualizations, and interactive elements
             based on the conversation context.
           </p>
         ) : (
-          <div className="charts-container">
+          <div className="visualizations-container">
+            {/* Render charts */}
             {charts.map(chart => (
               <div key={chart.id} style={{ marginBottom: '30px', maxWidth: '100%' }}>
-                <ChartComponent key={chart.id} config={chart} />
+                <ChartComponent config={chart} />
+              </div>
+            ))}
+            
+            {/* Render tables */}
+            {tables.map(table => (
+              <div key={table.id} style={{ marginBottom: '30px', maxWidth: '100%' }}>
+                <TableComponent config={table} />
               </div>
             ))}
           </div>

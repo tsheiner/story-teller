@@ -58,24 +58,44 @@ export function ChatInterface({
       console.log('Sending', messagesToSend.length, 'messages to Claude');
       
       const response = await claudeService.sendMessage(messagesToSend);
-      console.log('Received response from Claude', response.substring(0, 50) + '...');
-      
-      // Process the response to extract chart commands
+      console.log('Received response from Claude:', response);
+
+      // Log the full response to debug table parsing issues
+      console.log('=== FULL CLAUDE RESPONSE ===');
+      console.log(response);
+      console.log('=== END CLAUDE RESPONSE ===');
+
+      // Process the response to extract chart and table commands
       const { processedContent, extractedCharts } = ChartParserService.processMessage(response);
-      console.log('Processed Claude response, found', extractedCharts.length, 'charts');
+      console.log('Processed Claude response, found', extractedCharts.length, 'visualizations');
+      console.log('Extracted visualizations:', extractedCharts);
       
-      // If charts were found, dispatch events to update the workspace
+      // If visualizations were found, dispatch events to update the workspace
       if (extractedCharts.length > 0) {
-        extractedCharts.forEach(chart => {
-          console.log('Dispatching chart to workspace:', chart.title);
-          const event = new CustomEvent<WorkspaceUpdateEvent>('workspace-update', {
-            detail: {
-              type: 'add-chart',
-              payload: chart
-            }
-          });
-          window.dispatchEvent(event);
+        extractedCharts.forEach(visualization => {
+          if (visualization.type === 'table') {
+            console.log('Dispatching table to workspace:', visualization.title);
+            console.log('Table config:', visualization);
+            const event = new CustomEvent<WorkspaceUpdateEvent>('workspace-update', {
+              detail: {
+                type: 'add-table',
+                payload: visualization
+              }
+            });
+            window.dispatchEvent(event);
+          } else {
+            console.log('Dispatching chart to workspace:', visualization.title);
+            const event = new CustomEvent<WorkspaceUpdateEvent>('workspace-update', {
+              detail: {
+                type: 'add-chart',
+                payload: visualization
+              }
+            });
+            window.dispatchEvent(event);
+          }
         });
+      } else {
+        console.log('No visualizations found in Claude response');
       }
       
       const assistantMessage: ChatMessage = {
