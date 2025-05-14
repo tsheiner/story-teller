@@ -34,9 +34,10 @@ export class ClaudeService {
   private personaContext: string = '';
   private scenarioContext: string = '';
   private generalInstructions: string = '';  // New property for general instructions
-  private availableRoles: string[] = [];
-  private availablePersonas: string[] = [];
-  private availableScenarios: string[] = [];
+  // Add underscore prefix to indicate these are primarily for internal tracking
+  private _availableRoles: string[] = [];
+  private _availablePersonas: string[] = [];
+  private _availableScenarios: string[] = [];
   private isInitialized: boolean = false;
   private initPromise: Promise<void> | null = null;
 
@@ -125,9 +126,9 @@ export class ClaudeService {
       console.log('Loaded context options:', options);
       
       // Update class state
-      this.availableRoles = options.roles;
-      this.availablePersonas = options.personas;
-      this.availableScenarios = options.scenarios;
+      this._availableRoles = options.roles;
+      this._availablePersonas = options.personas;
+      this._availableScenarios = options.scenarios;
       
       return options;
     } catch (error) {
@@ -141,9 +142,9 @@ export class ClaudeService {
       
       console.log('Using fallback values due to error:', fallbackOptions);
       
-      this.availableRoles = fallbackOptions.roles;
-      this.availablePersonas = fallbackOptions.personas;
-      this.availableScenarios = fallbackOptions.scenarios;
+      this._availableRoles = fallbackOptions.roles;
+      this._availablePersonas = fallbackOptions.personas;
+      this._availableScenarios = fallbackOptions.scenarios;
       
       return fallbackOptions;
     }
@@ -326,6 +327,8 @@ ${this.scenarioContext}
       });
       
       console.log('Sending request to Claude API...');
+      
+      // Non-streaming implementation kept for fallback
       const response = await anthropic.messages.create({
         model: 'claude-3-opus-20240229',
         max_tokens: 1024,
@@ -348,6 +351,77 @@ ${this.scenarioContext}
         errorMessage = error.message as string;
       }
       return `Error: Unable to get response from Claude API. ${errorMessage}`;
+    }
+  }
+  
+  // New method for streaming responses
+  async streamMessage(
+    messages: ChatMessage[], 
+    onChunk: (chunk: string) => void, 
+    onComplete: (fullResponse: string) => void
+  ): Promise<void> {
+    // Make sure context is loaded
+    if (!this.isInitialized) {
+      console.log('Service not initialized, waiting for initialization...');
+      await this.loadContextFiles();
+    }
+
+    const systemPrompt = this.buildSystemPrompt();
+    
+    let apiMessages;
+    
+    // If messages array is empty, provide a minimal initialization message
+    if (messages.length === 0) {
+      apiMessages = [{
+        role: 'user' as "user",
+        content: 'Hello'
+      }];
+    } else {
+      apiMessages = messages.map(msg => ({
+        role: msg.role as "user" | "assistant",
+        content: msg.content
+      }));
+    }
+    
+    try {
+      // Check if API key is available
+      if (!import.meta.env.VITE_ANTHROPIC_API_KEY) {
+        throw new Error('VITE_ANTHROPIC_API_KEY is not defined in environment variables');
+      }
+      
+      console.log('Sending streaming request to Claude API...');
+      
+      // Using the stream method from Anthropic SDK
+      const stream = await anthropic.messages.stream({
+        model: 'claude-3-opus-20240229',
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages: apiMessages
+      });
+
+      let fullResponse = '';
+
+      // Process each chunk as it arrives
+      for await (const chunk of stream) {
+        if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+          const textChunk = chunk.delta.text;
+          fullResponse += textChunk;
+          onChunk(textChunk);
+        }
+      }
+      
+      // Handle the full message for post-processing
+      console.log('Streaming completed, full response length:', fullResponse.length);
+      onComplete(fullResponse);
+    } catch (error) {
+      console.error('Error in streaming from Claude API:', error);
+      let errorMessage = 'Unknown error';
+      if (error && typeof error === 'object' && 'message' in error) {
+        errorMessage = error.message as string;
+      }
+      const errorResponse = `Error: Unable to get response from Claude API. ${errorMessage}`;
+      onChunk(errorResponse);
+      onComplete(errorResponse);
     }
   }
 }
