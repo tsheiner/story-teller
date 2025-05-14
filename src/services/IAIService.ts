@@ -23,7 +23,7 @@ export interface IAIService {
   getSelectedModel(): string;
   setModel(modelId: string): void;
   
-  // Context management (exactly matching ClaudeService interface)
+  // Context management
   getAvailableRoles(): string[];
   getAvailablePersonas(): string[];
   getAvailableScenarios(): string[];
