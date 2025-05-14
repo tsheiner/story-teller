@@ -29,6 +29,11 @@ export class CiscoOpenAIService implements IAIService {
     this.clientSecret = import.meta.env.VITE_CISCO_CLIENT_SECRET || '';
     this.appKey = import.meta.env.VITE_CISCO_APP_KEY || '';
     
+    console.log('Cisco OpenAI Service initialized with:');
+    console.log('- Client ID present:', !!this.clientId);
+    console.log('- Client Secret present:', !!this.clientSecret);
+    console.log('- App Key present:', !!this.appKey);
+    
     if (!this.clientId || !this.clientSecret || !this.appKey) {
       console.error('Missing Cisco API credentials. Please check your .env file for:');
       console.error('- VITE_CISCO_CLIENT_ID');
@@ -60,14 +65,16 @@ export class CiscoOpenAIService implements IAIService {
     // Check if token is still valid (with 5 minute buffer)
     const now = Date.now();
     if (this.accessToken && now < this.tokenExpiryTime - (5 * 60 * 1000)) {
+      console.log('Using existing valid token');
       return this.accessToken;
     }
 
     try {
       console.log('Getting new Cisco API access token...');
       
-      // Base64 encode the credentials
+      // Base64 encode the credentials - exactly like the Python code
       const credentials = btoa(`${this.clientId}:${this.clientSecret}`);
+      console.log('Credentials encoded, making token request...');
       
       const response = await fetch('https://id.cisco.com/oauth2/default/v1/token', {
         method: 'POST',
@@ -79,15 +86,22 @@ export class CiscoOpenAIService implements IAIService {
         body: 'grant_type=client_credentials'
       });
 
+      console.log('Token response status:', response.status);
+      
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Token response error:', errorText);
         throw new Error(`Failed to get access token: ${response.status} ${response.statusText}`);
       }
 
       const tokenData = await response.json();
+      console.log('Token response received, expires_in:', tokenData.expires_in);
+      
       this.accessToken = tokenData.access_token;
       
-      // Tokens expire in 1 hour according to the docs
-      this.tokenExpiryTime = now + (60 * 60 * 1000);
+      // Use the actual expiration time from the response if available
+      const expiresIn = tokenData.expires_in || 3600; // default to 1 hour
+      this.tokenExpiryTime = now + (expiresIn * 1000);
       
       console.log('Successfully obtained Cisco API access token');
       return this.accessToken;
@@ -100,12 +114,24 @@ export class CiscoOpenAIService implements IAIService {
   private async ensureClient(): Promise<OpenAI> {
     const token = await this.getAccessToken();
     
+    // Always create a new client with fresh token to avoid stale auth issues
     if (!this.openaiClient || this.accessToken !== token) {
+      console.log('Creating new OpenAI client with fresh token');
+      
+      // Use the exact endpoint from Python code
+      const baseURL = import.meta.env.VITE_AZURE_OPENAI_ENDPOINT || 'https://chat-ai.cisco.com/openai';
+      
       this.openaiClient = new OpenAI({
         apiKey: token,
-        baseURL: 'https://chat-ai.cisco.com/openai',
-        dangerouslyAllowBrowser: true
+        baseURL: baseURL,
+        dangerouslyAllowBrowser: true,
+        defaultHeaders: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
       });
+      
+      console.log('OpenAI client created with baseURL:', baseURL);
     }
     
     return this.openaiClient;
@@ -305,11 +331,15 @@ ${this.scenarioContext}
 
   async sendMessage(messages: ChatMessage[]): Promise<string> {
     if (!this.isInitialized) {
+      console.log('Service not initialized, loading contexts...');
       await this.loadContextFiles();
     }
 
     const client = await this.ensureClient();
     const systemPrompt = this.buildSystemPrompt();
+    
+    // Build the user info object exactly like the Python code
+    const userInfo = { appkey: this.appKey };
     
     // Convert our messages format to OpenAI format
     const openaiMessages: any[] = [
@@ -326,23 +356,66 @@ ${this.scenarioContext}
 
     try {
       console.log(`Sending request to Cisco OpenAI API with model: ${this.selectedModelId}`);
+      console.log('User info:', userInfo);
+      console.log('Message count:', openaiMessages.length);
       
       const response = await client.chat.completions.create({
         model: this.selectedModelId,
         messages: openaiMessages,
-        user: JSON.stringify({ appkey: this.appKey }),
-        stream: false
+        user: JSON.stringify(userInfo), // Match the Python format exactly
+        stream: false,
+        temperature: 0.7,
+        max_tokens: 4096
       });
+
+      console.log('Cisco OpenAI API response received');
+      console.log('Response model:', response.model);
+      console.log('Response choices:', response.choices.length);
 
       const content = response.choices[0]?.message?.content;
       if (!content) {
         throw new Error('No content in response');
       }
 
-      console.log(`Received response from Cisco OpenAI (${response.choices[0].message.content?.length} chars)`);
+      console.log(`Received response from Cisco OpenAI (${content.length} chars)`);
       return content;
     } catch (error) {
       console.error('Error calling Cisco OpenAI API:', error);
+      
+      // Log more details about the error
+      if (error instanceof Error) {
+        console.error('Error name:', error.name);
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
+      
+      // Try to get fresh token and retry once
+      if (error.toString().includes('401') || error.toString().includes('auth')) {
+        console.log('Auth error detected, refreshing token and retrying...');
+        this.accessToken = ''; // Force token refresh
+        this.tokenExpiryTime = 0;
+        
+        try {
+          const newClient = await this.ensureClient();
+          const retryResponse = await newClient.chat.completions.create({
+            model: this.selectedModelId,
+            messages: openaiMessages,
+            user: JSON.stringify(userInfo),
+            stream: false,
+            temperature: 0.7,
+            max_tokens: 4096
+          });
+          
+          const retryContent = retryResponse.choices[0]?.message?.content;
+          if (retryContent) {
+            console.log('Retry successful after token refresh');
+            return retryContent;
+          }
+        } catch (retryError) {
+          console.error('Retry also failed:', retryError);
+        }
+      }
+      
       throw error;
     }
   }
@@ -353,11 +426,15 @@ ${this.scenarioContext}
     onComplete: (fullResponse: string) => void
   ): Promise<void> {
     if (!this.isInitialized) {
+      console.log('Service not initialized, loading contexts...');
       await this.loadContextFiles();
     }
 
     const client = await this.ensureClient();
     const systemPrompt = this.buildSystemPrompt();
+    
+    // Build the user info object exactly like the Python code
+    const userInfo = { appkey: this.appKey };
     
     // Convert our messages format to OpenAI format
     const openaiMessages: any[] = [
@@ -374,12 +451,15 @@ ${this.scenarioContext}
 
     try {
       console.log(`Streaming request to Cisco OpenAI API with model: ${this.selectedModelId}`);
+      console.log('User info:', userInfo);
       
       const stream = await client.chat.completions.create({
         model: this.selectedModelId,
         messages: openaiMessages,
-        user: JSON.stringify({ appkey: this.appKey }),
-        stream: true
+        user: JSON.stringify(userInfo), // Match the Python format exactly
+        stream: true,
+        temperature: 0.7,
+        max_tokens: 4096
       });
 
       let fullResponse = '';
@@ -396,6 +476,41 @@ ${this.scenarioContext}
       onComplete(fullResponse);
     } catch (error) {
       console.error('Error streaming from Cisco OpenAI API:', error);
+      
+      // Try to get fresh token and retry once for streaming too
+      if (error.toString().includes('401') || error.toString().includes('auth')) {
+        console.log('Auth error in streaming, refreshing token and retrying...');
+        this.accessToken = ''; // Force token refresh
+        this.tokenExpiryTime = 0;
+        
+        try {
+          const newClient = await this.ensureClient();
+          const retryStream = await newClient.chat.completions.create({
+            model: this.selectedModelId,
+            messages: openaiMessages,
+            user: JSON.stringify(userInfo),
+            stream: true,
+            temperature: 0.7,
+            max_tokens: 4096
+          });
+          
+          let retryFullResponse = '';
+          for await (const chunk of retryStream) {
+            const content = chunk.choices[0]?.delta?.content;
+            if (content) {
+              retryFullResponse += content;
+              onChunk(content);
+            }
+          }
+          
+          console.log('Streaming retry successful after token refresh');
+          onComplete(retryFullResponse);
+          return;
+        } catch (retryError) {
+          console.error('Streaming retry also failed:', retryError);
+        }
+      }
+      
       const errorMessage = `Error: Unable to get response from Cisco OpenAI API. ${error instanceof Error ? error.message : 'Unknown error'}`;
       onChunk(errorMessage);
       onComplete(errorMessage);
