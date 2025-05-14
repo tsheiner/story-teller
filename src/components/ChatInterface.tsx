@@ -179,7 +179,7 @@ export function ChatInterface({
           <Spinner animation="border" role="status" variant="primary" size="sm">
             <span className="visually-hidden">Loading...</span>
           </Spinner>
-          <span className={styles.loadingText}>Claude is thinking...</span>
+          <span className={styles.loadingText}>Thinking...</span>
         </div>
       )}
         
