@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Container, Form, Button, Spinner } from 'react-bootstrap';
 import ReactMarkdown from 'react-markdown';
 import styles from './ChatInterface.module.css';
@@ -21,8 +21,18 @@ export function ChatInterface({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [streamingMessage, setStreamingMessage] = useState<ChatMessage | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const scrollToBottom = () => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, streamingMessage]);
 
   
   const handleSubmit = async (e: React.FormEvent) => {
@@ -57,58 +67,84 @@ export function ChatInterface({
       const messagesToSend = [...messages, userMessage];
       console.log('Sending', messagesToSend.length, 'messages to Claude');
       
-      const response = await claudeService.sendMessage(messagesToSend);
-      console.log('Received response from Claude:', response);
-
-      // Log the full response to debug table parsing issues
-      console.log('=== FULL CLAUDE RESPONSE ===');
-      console.log(response);
-      console.log('=== END CLAUDE RESPONSE ===');
-
-      // Process the response to extract chart and table commands
-      const { processedContent, extractedCharts } = ChartParserService.processMessage(response);
-      console.log('Processed Claude response, found', extractedCharts.length, 'visualizations');
-      console.log('Extracted visualizations:', extractedCharts);
-      
-      // If visualizations were found, dispatch events to update the workspace
-      if (extractedCharts.length > 0) {
-        extractedCharts.forEach(visualization => {
-          if (visualization.type === 'table') {
-            console.log('Dispatching table to workspace:', visualization.title);
-            console.log('Table config:', visualization);
-            const event = new CustomEvent<WorkspaceUpdateEvent>('workspace-update', {
-              detail: {
-                type: 'add-table',
-                payload: visualization
-              }
-            });
-            window.dispatchEvent(event);
-          } else {
-            console.log('Dispatching chart to workspace:', visualization.title);
-            const event = new CustomEvent<WorkspaceUpdateEvent>('workspace-update', {
-              detail: {
-                type: 'add-chart',
-                payload: visualization
-              }
-            });
-            window.dispatchEvent(event);
-          }
-        });
-      } else {
-        console.log('No visualizations found in Claude response');
-      }
-      
-      const assistantMessage: ChatMessage = {
+      // Initialize empty streaming message
+      const initialStreamingMessage: ChatMessage = {
         role: 'assistant',
-        content: processedContent, // Use the processed content without chart commands
+        content: '',
         timestamp: new Date()
       };
+      setStreamingMessage(initialStreamingMessage);
+      
+      // Use streaming API
+      await claudeService.streamMessage(
+        messagesToSend,
+        // Handle each chunk as it arrives
+        (chunk: string) => {
+          setStreamingMessage(current => {
+            if (!current) return null;
+            return {
+              ...current,
+              content: current.content + chunk
+            };
+          });
+        },
+        // Handle complete response
+        (fullResponse: string) => {
+          console.log('Received complete response from Claude');
+          
+          // Log the full response to debug table parsing issues
+          console.log('=== FULL CLAUDE RESPONSE ===');
+          console.log(fullResponse);
+          console.log('=== END CLAUDE RESPONSE ===');
 
-      setMessages(prev => [...prev, assistantMessage]);
+          // Process the response to extract chart and table commands
+          const { processedContent, extractedCharts } = ChartParserService.processMessage(fullResponse);
+          console.log('Processed Claude response, found', extractedCharts.length, 'visualizations');
+          console.log('Extracted visualizations:', extractedCharts);
+          
+          // If visualizations were found, dispatch events to update the workspace
+          if (extractedCharts.length > 0) {
+            extractedCharts.forEach(visualization => {
+              if (visualization.type === 'table') {
+                console.log('Dispatching table to workspace:', visualization.title);
+                console.log('Table config:', visualization);
+                const event = new CustomEvent<WorkspaceUpdateEvent>('workspace-update', {
+                  detail: {
+                    type: 'add-table',
+                    payload: visualization
+                  }
+                });
+                window.dispatchEvent(event);
+              } else {
+                console.log('Dispatching chart to workspace:', visualization.title);
+                const event = new CustomEvent<WorkspaceUpdateEvent>('workspace-update', {
+                  detail: {
+                    type: 'add-chart',
+                    payload: visualization
+                  }
+                });
+                window.dispatchEvent(event);
+              }
+            });
+          } else {
+            console.log('No visualizations found in Claude response');
+          }
+          
+          // Add the complete message to the chat history and clear streaming message
+          const assistantMessage: ChatMessage = {
+            role: 'assistant',
+            content: processedContent, // Use the processed content without chart commands
+            timestamp: new Date()
+          };
+
+          setMessages(prev => [...prev, assistantMessage]);
+          setStreamingMessage(null);
+          setIsLoading(false);
+        }
+      );
     } catch (error) {
       console.error('Error getting response:', error);
-      // You might want to show an error message to the user here
-    } finally {
+      setStreamingMessage(null);
       setIsLoading(false);
     }
   };
@@ -117,28 +153,37 @@ export function ChatInterface({
     <Container className={`d-flex flex-column ${styles.chatContainer}`}>
       <div className={`flex-grow-1 overflow-auto mb-3 ${styles.messageContainer}`}>
       {messages.map((msg, index) => (
-  <div key={index} className={styles.messageWrapper}>
-    <div className={msg.role === 'user' ? styles.userMessage : styles.assistantMessage}>
-      {msg.role === 'user' ? (
-        msg.content
-      ) : (
-        <ReactMarkdown>{msg.content}</ReactMarkdown>
-      )}
-    </div>
-  </div>
-))}
-        
-        {/* Loading spinner shown while waiting for AI response */}
-        {isLoading && (
-          <div className={styles.loadingContainer}>
-            <Spinner animation="border" role="status" variant="primary" size="sm">
-              <span className="visually-hidden">Loading...</span>
-            </Spinner>
-            <span className={styles.loadingText}>Claude is thinking...</span>
+        <div key={index} className={styles.messageWrapper}>
+          <div className={msg.role === 'user' ? styles.userMessage : styles.assistantMessage}>
+            {msg.role === 'user' ? (
+              msg.content
+            ) : (
+              <ReactMarkdown>{msg.content}</ReactMarkdown>
+            )}
           </div>
-        )}
+        </div>
+      ))}
+      
+      {/* Streaming message */}
+      {streamingMessage && (
+        <div className={styles.messageWrapper}>
+          <div className={styles.assistantMessage}>
+            <ReactMarkdown>{streamingMessage.content}</ReactMarkdown>
+          </div>
+        </div>
+      )}
         
-        <div ref={messagesEndRef} />
+      {/* Loading spinner shown while waiting for AI response to start */}
+      {isLoading && !streamingMessage && (
+        <div className={styles.loadingContainer}>
+          <Spinner animation="border" role="status" variant="primary" size="sm">
+            <span className="visually-hidden">Loading...</span>
+          </Spinner>
+          <span className={styles.loadingText}>Thinking...</span>
+        </div>
+      )}
+        
+      <div ref={messagesEndRef} />
       </div>
 
       <Form onSubmit={handleSubmit} className="mt-auto">
