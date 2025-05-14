@@ -1,7 +1,8 @@
 export const StorageKeys = {
   SELECTED_ROLE: 'storyteller_selected_role',
   SELECTED_PERSONA: 'storyteller_selected_persona',
-  SELECTED_SCENARIO: 'storyteller_selected_scenario'
+  SELECTED_SCENARIO: 'storyteller_selected_scenario',
+  SELECTED_MODEL: 'storyteller_selected_model'
 };
 
 export const StorageService = {
@@ -16,6 +17,10 @@ export const StorageService = {
   
   saveSelectedScenario(scenarioName: string): void {
     localStorage.setItem(StorageKeys.SELECTED_SCENARIO, scenarioName);
+  },
+  
+  saveSelectedModel(modelId: string): void {
+    localStorage.setItem(StorageKeys.SELECTED_MODEL, modelId);
   },
   
   // Retrieve selected contexts with defaults
@@ -39,5 +44,12 @@ export const StorageService = {
     return savedScenario && availableScenarios.includes(savedScenario)
       ? savedScenario
       : (availableScenarios.length > 0 ? availableScenarios[0] : '');
+  },
+  
+  getSelectedModel(availableModels: string[]): string {
+    const savedModel = localStorage.getItem(StorageKeys.SELECTED_MODEL);
+    return savedModel && availableModels.includes(savedModel)
+      ? savedModel
+      : (availableModels.length > 0 ? availableModels[0] : 'claude-3-opus-20240229');
   }
 };

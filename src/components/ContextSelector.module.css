@@ -43,3 +43,10 @@
   color: #212529; /* Ensure dropdown options are also visible */
   background-color: white;
 }
+
+.divider {
+  margin: 10px 0 15px 0;
+  border: 0;
+  height: 1px;
+  background-color: #dee2e6;
+}

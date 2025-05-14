@@ -30,6 +30,7 @@ function App() {
   const [selectedRole, setSelectedRole] = useState('');
   const [selectedPersona, setSelectedPersona] = useState('');
   const [selectedScenario, setSelectedScenario] = useState('');
+  const [selectedModel, setSelectedModel] = useState('');
   
   // Reference to ClaudeService
   const claudeService = useRef(new ClaudeService());
@@ -48,15 +49,21 @@ function App() {
         const restoredPersona = StorageService.getSelectedPersona(contexts.personas);
         const restoredScenario = StorageService.getSelectedScenario(contexts.scenarios);
         
+        // Get available model IDs
+        const availableModelIds = ClaudeService.AVAILABLE_MODELS.map(model => model.id);
+        const restoredModel = StorageService.getSelectedModel(availableModelIds);
+        
         // Set state with restored values
         setSelectedRole(restoredRole);
         setSelectedPersona(restoredPersona);
         setSelectedScenario(restoredScenario);
+        setSelectedModel(restoredModel);
         
-        // Load the context files
+        // Initialize the Claude service with saved preferences
         if (restoredRole) await claudeService.current.loadRoleContext(restoredRole);
         if (restoredPersona) await claudeService.current.loadPersonaContext(restoredPersona);
         if (restoredScenario) await claudeService.current.loadScenarioContext(restoredScenario);
+        if (restoredModel) claudeService.current.setModel(restoredModel);
       } catch (error) {
         console.error('Error initializing app:', error);
       }
@@ -93,6 +100,15 @@ function App() {
     console.log("Scenario context updated");
   };
   
+  const handleModelChange = (model: string) => {
+    console.log(`App: Changing model to ${model}`);
+    setSelectedModel(model);
+    // Update the model in Claude service
+    claudeService.current.setModel(model);
+    StorageService.saveSelectedModel(model);
+    console.log("Model selection updated");
+  };
+  
   // Toggle context selector visibility
   const toggleContext = () => {
     setShowContext(!showContext);
@@ -113,12 +129,15 @@ function App() {
             <div style={{ display: showContext ? 'block' : 'none' }}>
               <ContextSelector 
                 availableContexts={availableContexts}
+                availableModels={ClaudeService.AVAILABLE_MODELS}
                 selectedRole={selectedRole}
                 selectedPersona={selectedPersona}
                 selectedScenario={selectedScenario}
+                selectedModel={selectedModel}
                 onRoleChange={handleRoleChange}
                 onPersonaChange={handlePersonaChange}
                 onScenarioChange={handleScenarioChange}
+                onModelChange={handleModelChange}
               />
             </div>
           </div>
