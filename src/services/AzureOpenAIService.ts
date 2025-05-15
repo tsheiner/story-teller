@@ -1,14 +1,16 @@
-// src/services/CiscoOpenAIService.ts
+// src/services/AzureOpenAIService.ts
 import { OpenAI } from 'openai';
 import { IAIService, ChatMessage, ContextOptions, ModelOption } from './IAIService';
 
-export class CiscoOpenAIService implements IAIService {
+export class AzureOpenAIService implements IAIService {
   private openaiClient: OpenAI | null = null;
   private accessToken: string = '';
   private tokenExpiryTime: number = 0;
   private clientId: string;
   private clientSecret: string;
   private appKey: string;
+  private endpoint: string;
+  private apiVersion: string;
   private availableModels: ModelOption[] = [];
   private selectedModelId: string = '';
   
@@ -25,14 +27,18 @@ export class CiscoOpenAIService implements IAIService {
 
   constructor() {
     // Read credentials from environment variables
-    this.clientId = import.meta.env.VITE_CISCO_CLIENT_ID || '';
-    this.clientSecret = import.meta.env.VITE_CISCO_CLIENT_SECRET || '';
-    this.appKey = import.meta.env.VITE_CISCO_APP_KEY || '';
+    this.clientId = import.meta.env.VITE_AZURE_OPENAI_CLIENT_ID || '';
+    this.clientSecret = import.meta.env.VITE_AZURE_OPENAI_CLIENT_SECRET || '';
+    this.appKey = import.meta.env.VITE_AZURE_OPENAI_APP_KEY || '';
+    this.endpoint = import.meta.env.VITE_AZURE_OPENAI_ENDPOINT || '';
+    this.apiVersion = import.meta.env.VITE_AZURE_OPENAI_API_VERSION || '2023-05-15';
     
-    console.log('Cisco OpenAI Service initialized with:');
+    console.log('Azure OpenAI Service initialized with:');
     console.log('- Client ID present:', !!this.clientId);
     console.log('- Client Secret present:', !!this.clientSecret);
     console.log('- App Key present:', !!this.appKey);
+    console.log('- Endpoint present:', !!this.endpoint);
+    console.log('- API Version:', this.apiVersion);
     
     // More detailed credential logging for debugging
     if (this.clientId) {
@@ -44,25 +50,30 @@ export class CiscoOpenAIService implements IAIService {
     if (this.appKey) {
       console.log('- App Key (first 8 chars):', this.appKey.substring(0, 8) + '...');
     }
+    if (this.endpoint) {
+      console.log('- Endpoint:', this.endpoint);
+    }
     
-    if (!this.clientId || !this.clientSecret || !this.appKey) {
-      console.error('Missing Cisco API credentials. Please check your .env file for:');
-      console.error('- VITE_CISCO_CLIENT_ID');
-      console.error('- VITE_CISCO_CLIENT_SECRET');
-      console.error('- VITE_CISCO_APP_KEY');
+    if (!this.clientId || !this.clientSecret || !this.appKey || !this.endpoint) {
+      console.error('Missing Azure OpenAI API credentials. Please check your .env file for:');
+      console.error('- VITE_AZURE_OPENAI_CLIENT_ID');
+      console.error('- VITE_AZURE_OPENAI_CLIENT_SECRET');
+      console.error('- VITE_AZURE_OPENAI_APP_KEY');
+      console.error('- VITE_AZURE_OPENAI_ENDPOINT');
+      console.error('- VITE_AZURE_OPENAI_API_VERSION (optional)');
     }
     
     // Define available models based on the documentation
     this.availableModels = [
       {
-        id: 'gpt-4o',
-        name: 'GPT-4o',
-        description: 'Most advanced model with 120K context'
+        id: 'gpt-4',
+        name: 'GPT-4',
+        description: 'Most advanced model (Azure)'
       },
       {
-        id: 'gpt-4o-mini',
-        name: 'GPT-4o Mini',
-        description: 'Fast and efficient with 120K context'
+        id: 'gpt-35-turbo',
+        name: 'GPT-3.5 Turbo',
+        description: 'Fast and efficient (Azure)'
       }
     ];
     
@@ -76,18 +87,31 @@ export class CiscoOpenAIService implements IAIService {
     // Check if token is still valid (with 5 minute buffer)
     const now = Date.now();
     if (this.accessToken && now < this.tokenExpiryTime - (5 * 60 * 1000)) {
-      console.log('Using existing valid token');
+      console.log('Using existing valid token for Azure OpenAI');
       return this.accessToken;
     }
 
     try {
-      console.log('Getting new Cisco API access token...');
+      console.log('Getting new Azure OpenAI access token...');
+      
+      // Check if credentials are present
+      if (!this.clientId) {
+        console.error('Client ID is missing or empty');
+        throw new Error('VITE_AZURE_OPENAI_CLIENT_ID is missing or empty in environment variables');
+      }
+      
+      if (!this.clientSecret) {
+        console.error('Client Secret is missing or empty');
+        throw new Error('VITE_AZURE_OPENAI_CLIENT_SECRET is missing or empty in environment variables');
+      }
       
       // Base64 encode the credentials - exactly like the Python code
       const credentials = btoa(`${this.clientId}:${this.clientSecret}`);
       console.log('Credentials encoded, making token request...');
       console.log('Request URL: https://id.cisco.com/oauth2/default/v1/token');
       console.log('Client ID being used:', this.clientId.substring(0, 8) + '...');
+      console.log('Client ID length:', this.clientId.length);
+      console.log('Client Secret length:', this.clientSecret.length);
       
       const requestBody = 'grant_type=client_credentials';
       const requestHeaders = {
@@ -101,7 +125,6 @@ export class CiscoOpenAIService implements IAIService {
         'Content-Type': requestHeaders['Content-Type'],
         'Authorization': 'Basic [REDACTED]'
       });
-      console.log('Request body:', requestBody);
       
       const response = await fetch('https://id.cisco.com/oauth2/default/v1/token', {
         method: 'POST',
@@ -110,12 +133,16 @@ export class CiscoOpenAIService implements IAIService {
       });
 
       console.log('Token response status:', response.status);
-      console.log('Token response headers:', Object.fromEntries(response.headers.entries()));
       
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Token response error:', errorText);
         console.error('Full response object:', response);
+        console.error('Authentication failed with status 401 - Unauthorized');
+        console.error('This means the client_id/client_secret combination was rejected');
+        console.error('Please check your environment variables:');
+        console.error('- VITE_AZURE_OPENAI_CLIENT_ID');
+        console.error('- VITE_AZURE_OPENAI_CLIENT_SECRET');
         
         // Try to parse error as JSON for more details
         try {
@@ -139,10 +166,10 @@ export class CiscoOpenAIService implements IAIService {
       const expiresIn = tokenData.expires_in || 3600; // default to 1 hour
       this.tokenExpiryTime = now + (expiresIn * 1000);
       
-      console.log('Successfully obtained Cisco API access token');
+      console.log('Successfully obtained Azure OpenAI access token');
       return this.accessToken;
     } catch (error) {
-      console.error('Error getting Cisco API access token:', error);
+      console.error('Error getting Azure OpenAI access token:', error);
       
       // Log more details about the error
       if (error instanceof Error) {
@@ -160,14 +187,12 @@ export class CiscoOpenAIService implements IAIService {
     
     // Always create a new client with fresh token to avoid stale auth issues
     if (!this.openaiClient || this.accessToken !== token) {
-      console.log('Creating new OpenAI client with fresh token');
-      
-      // Use the exact endpoint from Python code
-      const baseURL = 'https://chat-ai.cisco.com/openai';
+      console.log('Creating new Azure OpenAI client with fresh token');
       
       this.openaiClient = new OpenAI({
         apiKey: token,
-        baseURL: baseURL,
+        baseURL: this.endpoint,
+        defaultQuery: { 'api-version': this.apiVersion },
         dangerouslyAllowBrowser: true,
         defaultHeaders: {
           'Accept': 'application/json',
@@ -175,7 +200,7 @@ export class CiscoOpenAIService implements IAIService {
         }
       });
       
-      console.log('OpenAI client created with baseURL:', baseURL);
+      console.log('Azure OpenAI client created with baseURL:', this.endpoint);
     }
     
     return this.openaiClient;
@@ -196,13 +221,13 @@ export class CiscoOpenAIService implements IAIService {
         const oldModel = this.availableModels.find(m => m.id === this.selectedModelId);
         const newModel = this.availableModels.find(m => m.id === modelId);
         
-        console.log('%c🔄 CISCO OPENAI MODEL CHANGED', 'background: #1ba1e2; color: white; padding: 4px 8px; border-radius: 4px;');
+        console.log('%c🔄 AZURE OPENAI MODEL CHANGED', 'background: #0078d4; color: white; padding: 4px 8px; border-radius: 4px;');
         console.log(`From: ${oldModel?.name || this.selectedModelId}`);
         console.log(`To: ${newModel?.name || modelId}`);
       }
       this.selectedModelId = modelId;
     } else {
-      console.error(`Invalid Cisco OpenAI model ID: ${modelId}`);
+      console.error(`Invalid Azure OpenAI model ID: ${modelId}`);
     }
   }
 
@@ -226,7 +251,7 @@ export class CiscoOpenAIService implements IAIService {
     
     this.initPromise = (async () => {
       try {
-        console.log('Loading available contexts for Cisco OpenAI...');
+        console.log('Loading available contexts for Azure OpenAI...');
         
         await this.loadGeneralInstructions();
         const contexts = await this.loadAvailableContexts();
@@ -247,9 +272,9 @@ export class CiscoOpenAIService implements IAIService {
         }
         
         this.isInitialized = true;
-        console.log('Cisco OpenAI context files loaded successfully');
+        console.log('Azure OpenAI context files loaded successfully');
       } catch (error) {
-        console.error('Error loading context files for Cisco OpenAI:', error);
+        console.error('Error loading context files for Azure OpenAI:', error);
         this.initPromise = null;
         throw error;
       }
@@ -379,27 +404,27 @@ ${this.scenarioContext}
       await this.loadContextFiles();
     }
 
-    const client = await this.ensureClient();
-    const systemPrompt = this.buildSystemPrompt();
-    
-    // Build the user info object exactly like the Python code
-    const userInfo = { appkey: this.appKey };
-    
-    // Convert our messages format to OpenAI format
-    const openaiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-      { role: 'system', content: systemPrompt }
-    ];
-    
-    // Add user and assistant messages
-    for (const msg of messages) {
-      openaiMessages.push({
-        role: msg.role,
-        content: msg.content
-      });
-    }
-
     try {
-      console.log(`Sending request to Cisco OpenAI API with model: ${this.selectedModelId}`);
+      const client = await this.ensureClient();
+      const systemPrompt = this.buildSystemPrompt();
+      
+      // Build the user info object exactly like the Python code
+      const userInfo = { appkey: this.appKey };
+      
+      // Convert our messages format to OpenAI format
+      const openaiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+        { role: 'system', content: systemPrompt }
+      ];
+      
+      // Add user and assistant messages
+      for (const msg of messages) {
+        openaiMessages.push({
+          role: msg.role,
+          content: msg.content
+        });
+      }
+
+      console.log(`Sending request to Azure OpenAI API with model: ${this.selectedModelId}`);
       console.log('User info:', userInfo);
       console.log('Message count:', openaiMessages.length);
       
@@ -412,7 +437,7 @@ ${this.scenarioContext}
         max_tokens: 4096
       });
 
-      console.log('Cisco OpenAI API response received');
+      console.log('Azure OpenAI API response received');
       console.log('Response model:', response.model);
       console.log('Response choices:', response.choices.length);
 
@@ -421,10 +446,10 @@ ${this.scenarioContext}
         throw new Error('No content in response');
       }
 
-      console.log(`Received response from Cisco OpenAI (${content.length} chars)`);
+      console.log(`Received response from Azure OpenAI (${content.length} chars)`);
       return content;
     } catch (error) {
-      console.error('Error calling Cisco OpenAI API:', error);
+      console.error('Error calling Azure OpenAI API:', error);
       
       // Log more details about the error
       if (error instanceof Error) {
@@ -460,7 +485,30 @@ ${this.scenarioContext}
         }
       }
       
-      throw error;
+      // Prepare a user-friendly error message that will be displayed in the chat
+      let errorMessage = '';
+      
+      if (error.toString().includes('401') || error.toString().includes('auth')) {
+        errorMessage = `⚠️ Authentication Error: Could not authenticate with Azure OpenAI. 
+        Please check your API credentials in the .env file:
+        - VITE_AZURE_OPENAI_CLIENT_ID
+        - VITE_AZURE_OPENAI_CLIENT_SECRET
+        - VITE_AZURE_OPENAI_APP_KEY`;
+      } else if (error.toString().includes('404')) {
+        errorMessage = `⚠️ Not Found Error: The Azure OpenAI API endpoint or model was not found. 
+        Please check your API endpoint and model ID:
+        - VITE_AZURE_OPENAI_ENDPOINT
+        - Selected model: ${this.selectedModelId}`;
+      } else if (error.toString().includes('429')) {
+        errorMessage = `⚠️ Rate Limit Error: Too many requests to Azure OpenAI API. 
+        Please wait a moment and try again.`;
+      } else {
+        errorMessage = `⚠️ Azure OpenAI API Error: ${error instanceof Error ? error.message : 'Unknown error'}
+        
+        Please check the console logs for more details.`;
+      }
+      
+      return errorMessage;
     }
   }
 
@@ -474,27 +522,27 @@ ${this.scenarioContext}
       await this.loadContextFiles();
     }
 
-    const client = await this.ensureClient();
-    const systemPrompt = this.buildSystemPrompt();
-    
-    // Build the user info object exactly like the Python code
-    const userInfo = { appkey: this.appKey };
-    
-    // Convert our messages format to OpenAI format
-    const openaiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-      { role: 'system', content: systemPrompt }
-    ];
-    
-    // Add user and assistant messages
-    for (const msg of messages) {
-      openaiMessages.push({
-        role: msg.role,
-        content: msg.content
-      });
-    }
-
     try {
-      console.log(`Streaming request to Cisco OpenAI API with model: ${this.selectedModelId}`);
+      const client = await this.ensureClient();
+      const systemPrompt = this.buildSystemPrompt();
+      
+      // Build the user info object exactly like the Python code
+      const userInfo = { appkey: this.appKey };
+      
+      // Convert our messages format to OpenAI format
+      const openaiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+        { role: 'system', content: systemPrompt }
+      ];
+      
+      // Add user and assistant messages
+      for (const msg of messages) {
+        openaiMessages.push({
+          role: msg.role,
+          content: msg.content
+        });
+      }
+
+      console.log(`Streaming request to Azure OpenAI API with model: ${this.selectedModelId}`);
       console.log('User info:', userInfo);
       
       const stream = await client.chat.completions.create({
@@ -516,10 +564,17 @@ ${this.scenarioContext}
         }
       }
 
-      console.log(`Cisco OpenAI streaming completed (${fullResponse.length} chars)`);
+      console.log(`Azure OpenAI streaming completed (${fullResponse.length} chars)`);
       onComplete(fullResponse);
     } catch (error) {
-      console.error('Error streaming from Cisco OpenAI API:', error);
+      console.error('Error streaming from Azure OpenAI API:', error);
+      
+      // Log more details about the error
+      if (error instanceof Error) {
+        console.error('Error name:', error.name);
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
       
       // Try to get fresh token and retry once for streaming too
       if (error && (error.toString().includes('401') || error.toString().includes('auth'))) {
@@ -555,7 +610,29 @@ ${this.scenarioContext}
         }
       }
       
-      const errorMessage = `Error: Unable to get response from Cisco OpenAI API. ${error instanceof Error ? error.message : 'Unknown error'}`;
+      // Prepare a user-friendly error message that will be displayed in the chat
+      let errorMessage = '';
+      
+      if (error.toString().includes('401') || error.toString().includes('auth')) {
+        errorMessage = `⚠️ Authentication Error: Could not authenticate with Azure OpenAI. 
+        Please check your API credentials in the .env file:
+        - VITE_AZURE_OPENAI_CLIENT_ID
+        - VITE_AZURE_OPENAI_CLIENT_SECRET
+        - VITE_AZURE_OPENAI_APP_KEY`;
+      } else if (error.toString().includes('404')) {
+        errorMessage = `⚠️ Not Found Error: The Azure OpenAI API endpoint or model was not found. 
+        Please check your API endpoint and model ID:
+        - VITE_AZURE_OPENAI_ENDPOINT
+        - Selected model: ${this.selectedModelId}`;
+      } else if (error.toString().includes('429')) {
+        errorMessage = `⚠️ Rate Limit Error: Too many requests to Azure OpenAI API. 
+        Please wait a moment and try again.`;
+      } else {
+        errorMessage = `⚠️ Azure OpenAI API Error: ${error instanceof Error ? error.message : 'Unknown error'}
+        
+        Please check the console logs for more details.`;
+      }
+      
       onChunk(errorMessage);
       onComplete(errorMessage);
     }

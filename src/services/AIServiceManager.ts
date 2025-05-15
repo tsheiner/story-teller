@@ -1,11 +1,11 @@
 // src/services/AIServiceManager.ts
 import { IAIService, ChatMessage, ContextOptions, ModelOption } from './IAIService';
 import { ClaudeServiceAdapter } from './ClaudeServiceAdapter';
-import { CiscoOpenAIService } from './CiscoOpenAIService';
+import { AzureOpenAIService } from './AzureOpenAIService';
 
 export class AIServiceManager implements IAIService {
   private claudeService: IAIService;
-  private ciscoService: IAIService;
+  private azureService: IAIService;
   private currentService: IAIService;
   private allModels: ModelOption[] = [];
   private currentModelId: string = '';
@@ -13,12 +13,12 @@ export class AIServiceManager implements IAIService {
   constructor() {
     // Initialize both services
     this.claudeService = new ClaudeServiceAdapter();
-    this.ciscoService = new CiscoOpenAIService();
+    this.azureService = new AzureOpenAIService();
     
     // Combine models from both services
     this.allModels = [
       ...this.claudeService.getAvailableModels(),
-      ...this.ciscoService.getAvailableModels()
+      ...this.azureService.getAvailableModels()
     ];
     
     // Set default service and model (Claude by default)
@@ -33,8 +33,8 @@ export class AIServiceManager implements IAIService {
     if (modelId.startsWith('claude-')) {
       return this.claudeService;
     }
-    // Everything else goes to Cisco OpenAI (for now)
-    return this.ciscoService;
+    // Everything else goes to Azure OpenAI (for now)
+    return this.azureService;
   }
 
   // Model management
@@ -59,8 +59,8 @@ export class AIServiceManager implements IAIService {
     if (this.currentModelId !== modelId) {
       const oldModel = this.allModels.find(m => m.id === this.currentModelId);
       console.log('%c🔄 MODEL MANAGER: Model Changed', 'background: #9966cc; color: white; padding: 4px 8px; border-radius: 4px;');
-      console.log(`From: ${oldModel?.name || this.currentModelId} (${this.currentService === this.claudeService ? 'Claude' : 'Cisco'})`);
-      console.log(`To: ${model.name} (${newService === this.claudeService ? 'Claude' : 'Cisco'})`);
+      console.log(`From: ${oldModel?.name || this.currentModelId} (${this.currentService === this.claudeService ? 'Claude' : 'Azure'})`);
+      console.log(`To: ${model.name} (${newService === this.claudeService ? 'Claude' : 'Azure'})`);
       
       if (wasServiceSwitch) {
         console.log('🔄 Service switched!');
@@ -97,7 +97,7 @@ export class AIServiceManager implements IAIService {
     // Load context for both services to ensure they're both ready
     await Promise.all([
       this.claudeService.loadContextFiles(roleName, personaName, scenarioName),
-      this.ciscoService.loadContextFiles(roleName, personaName, scenarioName)
+      this.azureService.loadContextFiles(roleName, personaName, scenarioName)
     ]);
   }
 
@@ -107,32 +107,32 @@ export class AIServiceManager implements IAIService {
 
   async loadRoleContext(roleName: string): Promise<string> {
     // Load context for both services to keep them in sync
-    const [claudeResult, ciscoResult] = await Promise.all([
+    const [claudeResult, azureResult] = await Promise.all([
       this.claudeService.loadRoleContext(roleName),
-      this.ciscoService.loadRoleContext(roleName)
+      this.azureService.loadRoleContext(roleName)
     ]);
     // Return result from current service
-    return this.currentService === this.claudeService ? claudeResult : ciscoResult;
+    return this.currentService === this.claudeService ? claudeResult : azureResult;
   }
 
   async loadPersonaContext(personaName: string): Promise<string> {
     // Load context for both services to keep them in sync
-    const [claudeResult, ciscoResult] = await Promise.all([
+    const [claudeResult, azureResult] = await Promise.all([
       this.claudeService.loadPersonaContext(personaName),
-      this.ciscoService.loadPersonaContext(personaName)
+      this.azureService.loadPersonaContext(personaName)
     ]);
     // Return result from current service
-    return this.currentService === this.claudeService ? claudeResult : ciscoResult;
+    return this.currentService === this.claudeService ? claudeResult : azureResult;
   }
 
   async loadScenarioContext(scenarioName: string): Promise<string> {
     // Load context for both services to keep them in sync
-    const [claudeResult, ciscoResult] = await Promise.all([
+    const [claudeResult, azureResult] = await Promise.all([
       this.claudeService.loadScenarioContext(scenarioName),
-      this.ciscoService.loadScenarioContext(scenarioName)
+      this.azureService.loadScenarioContext(scenarioName)
     ]);
     // Return result from current service
-    return this.currentService === this.claudeService ? claudeResult : ciscoResult;
+    return this.currentService === this.claudeService ? claudeResult : azureResult;
   }
 
   hasLoadedContexts(): boolean {
