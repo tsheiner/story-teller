@@ -21,17 +21,21 @@ const contextApiPlugin = () => ({
           const roles = fs.readdirSync(path.join(contextDir, 'roles'))
             .filter(file => file.toLowerCase().endsWith('.md'))
             .map(file => file.slice(0, -3)) // Remove .md extension
-            
+
           const personas = fs.readdirSync(path.join(contextDir, 'personas'))
             .filter(file => file.toLowerCase().endsWith('.md'))
             .map(file => file.slice(0, -3))
-            
+
           const scenarios = fs.readdirSync(path.join(contextDir, 'scenarios'))
             .filter(file => file.toLowerCase().endsWith('.md'))
             .map(file => file.slice(0, -3))
-          
+
+          const systems = fs.readdirSync(path.join(contextDir, 'system'))
+            .filter(file => file.toLowerCase().endsWith('.md'))
+            .map(file => file.slice(0, -3))
+
           // Create response object
-          const result = { roles, personas, scenarios }
+          const result = { roles, personas, scenarios, systems }
           
           // Send response
           res.writeHead(200, { 'Content-Type': 'application/json' })

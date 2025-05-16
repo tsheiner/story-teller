@@ -20,16 +20,19 @@ function App() {
     roles: string[];
     personas: string[];
     scenarios: string[];
+    systems: string[];
   }>({
     roles: [],
     personas: [],
-    scenarios: []
+    scenarios: [],
+    systems: []
   });
   
   // State for selected options
   const [selectedRole, setSelectedRole] = useState('');
   const [selectedPersona, setSelectedPersona] = useState('');
   const [selectedScenario, setSelectedScenario] = useState('');
+  const [selectedSystem, setSelectedSystem] = useState('');
   const [selectedModel, setSelectedModel] = useState('');
   
   // Reference to ClaudeService
@@ -48,21 +51,24 @@ function App() {
         const restoredRole = StorageService.getSelectedRole(contexts.roles);
         const restoredPersona = StorageService.getSelectedPersona(contexts.personas);
         const restoredScenario = StorageService.getSelectedScenario(contexts.scenarios);
-        
+        const restoredSystem = StorageService.getSelectedSystem(contexts.systems);
+
         // Get available model IDs
         const availableModelIds = ClaudeService.AVAILABLE_MODELS.map(model => model.id);
         const restoredModel = StorageService.getSelectedModel(availableModelIds);
-        
+
         // Set state with restored values
         setSelectedRole(restoredRole);
         setSelectedPersona(restoredPersona);
         setSelectedScenario(restoredScenario);
+        setSelectedSystem(restoredSystem);
         setSelectedModel(restoredModel);
         
         // Initialize the Claude service with saved preferences
         if (restoredRole) await claudeService.current.loadRoleContext(restoredRole);
         if (restoredPersona) await claudeService.current.loadPersonaContext(restoredPersona);
         if (restoredScenario) await claudeService.current.loadScenarioContext(restoredScenario);
+        if (restoredSystem) await claudeService.current.loadSystemContext(restoredSystem);
         if (restoredModel) claudeService.current.setModel(restoredModel);
       } catch (error) {
         console.error('Error initializing app:', error);
@@ -99,6 +105,15 @@ function App() {
     StorageService.saveSelectedScenario(scenario);
     console.log("Scenario context updated");
   };
+
+  const handleSystemChange = async (system: string) => {
+    console.log(`App: Changing system to ${system}`);
+    setSelectedSystem(system);
+    // Load the new context and rebuild the system prompt
+    await claudeService.current.loadSystemContext(system);
+    StorageService.saveSelectedSystem(system);
+    console.log("System context updated");
+  };
   
   const handleModelChange = (model: string) => {
     console.log(`App: Changing model to ${model}`);
@@ -127,16 +142,18 @@ function App() {
               />
             </div>
             <div style={{ display: showContext ? 'block' : 'none' }}>
-              <ContextSelector 
+              <ContextSelector
                 availableContexts={availableContexts}
                 availableModels={ClaudeService.AVAILABLE_MODELS}
                 selectedRole={selectedRole}
                 selectedPersona={selectedPersona}
                 selectedScenario={selectedScenario}
+                selectedSystem={selectedSystem}
                 selectedModel={selectedModel}
                 onRoleChange={handleRoleChange}
                 onPersonaChange={handlePersonaChange}
                 onScenarioChange={handleScenarioChange}
+                onSystemChange={handleSystemChange}
                 onModelChange={handleModelChange}
               />
             </div>

@@ -2,6 +2,7 @@ export const StorageKeys = {
   SELECTED_ROLE: 'storyteller_selected_role',
   SELECTED_PERSONA: 'storyteller_selected_persona',
   SELECTED_SCENARIO: 'storyteller_selected_scenario',
+  SELECTED_SYSTEM: 'storyteller_selected_system',
   SELECTED_MODEL: 'storyteller_selected_model'
 };
 
@@ -18,7 +19,11 @@ export const StorageService = {
   saveSelectedScenario(scenarioName: string): void {
     localStorage.setItem(StorageKeys.SELECTED_SCENARIO, scenarioName);
   },
-  
+
+  saveSelectedSystem(systemName: string): void {
+    localStorage.setItem(StorageKeys.SELECTED_SYSTEM, systemName);
+  },
+
   saveSelectedModel(modelId: string): void {
     localStorage.setItem(StorageKeys.SELECTED_MODEL, modelId);
   },
@@ -45,7 +50,14 @@ export const StorageService = {
       ? savedScenario
       : (availableScenarios.length > 0 ? availableScenarios[0] : '');
   },
-  
+
+  getSelectedSystem(availableSystems: string[]): string {
+    const savedSystem = localStorage.getItem(StorageKeys.SELECTED_SYSTEM);
+    return savedSystem && availableSystems.includes(savedSystem)
+      ? savedSystem
+      : (availableSystems.length > 0 ? availableSystems[0] : '');
+  },
+
   getSelectedModel(availableModels: string[]): string {
     const savedModel = localStorage.getItem(StorageKeys.SELECTED_MODEL);
     return savedModel && availableModels.includes(savedModel)
