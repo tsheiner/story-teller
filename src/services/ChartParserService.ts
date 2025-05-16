@@ -159,44 +159,44 @@ export class ChartParserService {
         } else if (trimmedKey === 'categories') {
           try {
             // Parse categories as JSON array
-            const categoriesText = trimmedValue.startsWith('[') && trimmedValue.endsWith(']')
-              ? trimmedValue
-              : `[${trimmedValue}]`;
+            let categoriesText = trimmedValue.trim();
 
-            console.log('Parsing categories:', categoriesText);
+            // Ensure it's wrapped in brackets
+            if (!categoriesText.startsWith('[') || !categoriesText.endsWith(']')) {
+              categoriesText = `[${categoriesText}]`;
+            }
 
-            // For escaped double quotes in AI response like \"06:00\"
-            let cleanedText = categoriesText;
-            if (cleanedText.includes('\\"')) {
-              // Replace escaped quotes with actual quotes for parsing
-              cleanedText = cleanedText.replace(/\\"/g, '"');
+            console.log('Original categories text:', trimmedValue);
+            console.log('Processing categories:', categoriesText);
+
+            // Handle escaped quotes from AI responses like \"06:00\"
+            if (categoriesText.includes('\\"')) {
+              categoriesText = categoriesText.replace(/\\"/g, '"');
+              console.log('After unescaping quotes:', categoriesText);
             }
 
             try {
-              // First try to parse directly
-              config.xAxis.categories = JSON.parse(cleanedText);
-            } catch (directError) {
-              // If direct parsing fails, try the regex replacement approach
-              config.xAxis.categories = JSON.parse(cleanedText.replace(/(\w+):/g, '"$1":'));
-            }
+              // Try to parse as JSON
+              config.xAxis.categories = JSON.parse(categoriesText);
+              console.log('Successfully parsed categories as JSON:', config.xAxis.categories);
+            } catch (jsonError) {
+              console.log('JSON parsing failed, trying manual extraction...');
 
-            console.log('Parsed categories result:', config.xAxis.categories);
+              // Fallback: extract quoted strings manually
+              const matches = categoriesText.match(/"([^"]*)"/g);
+              if (matches) {
+                config.xAxis.categories = matches.map(match => match.replace(/"/g, ''));
+                console.log('Manually extracted categories:', config.xAxis.categories);
+              } else {
+                // Last resort: split by comma and clean up
+                const parts = categoriesText.replace(/[\[\]]/g, '').split(',');
+                config.xAxis.categories = parts.map(p => p.trim().replace(/['"]/g, '')).filter(p => p.length > 0);
+                console.log('Fallback split categories:', config.xAxis.categories);
+              }
+            }
           } catch (error) {
             console.error('Error parsing categories:', error);
             console.error('Categories text was:', trimmedValue);
-
-            // Fallback: try to parse manually if JSON parsing fails
-            try {
-              // Strip brackets and quotes and split by commas
-              const parts = trimmedValue.replace(/[\[\]"\\]/g, '').split(',');
-              const categories = parts.map(p => p.trim()).filter(p => p.length > 0);
-              console.log('Fallback parsed categories:', categories);
-              if (categories.length > 0) {
-                config.xAxis.categories = categories;
-              }
-            } catch (fallbackError) {
-              console.error('Fallback categories parsing also failed:', fallbackError);
-            }
           }
         }
       }
