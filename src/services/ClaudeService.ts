@@ -27,6 +27,7 @@ export interface ContextOptions {
   roles: string[];
   personas: string[];
   scenarios: string[];
+  systems: string[];
 }
 
 export interface ModelOption {
@@ -46,10 +47,12 @@ export class ClaudeService {
   private roleContext: string = '';
   private personaContext: string = '';
   private scenarioContext: string = '';
+  private systemContext: string = ''; // New property for system context
   private generalInstructions: string = '';  // New property for general instructions
   private availableRoles: string[] = [];
   private availablePersonas: string[] = [];
   private availableScenarios: string[] = [];
+  private availableSystems: string[] = [];
   private selectedModel: string = 'claude-3-opus-20240229'; // Default model
   private isInitialized: boolean = false;
   private initPromise: Promise<void> | null = null;
@@ -72,6 +75,11 @@ export class ClaudeService {
   // Get available scenarios
   public getAvailableScenarios(): string[] {
     return this.availableScenarios;
+  }
+
+  // Get available systems
+  public getAvailableSystems(): string[] {
+    return this.availableSystems;
   }
 
   // Setter for model selection
@@ -102,7 +110,8 @@ export class ClaudeService {
   async loadContextFiles(
     roleName?: string,
     personaName?: string,
-    scenarioName?: string
+    scenarioName?: string,
+    systemName?: string
   ) {
     // If another initialization is in progress, wait for it
     if (this.initPromise && !this.isInitialized) {
@@ -125,15 +134,20 @@ export class ClaudeService {
           const roleToLoad = roleName || contexts.roles[0];
           await this.loadRoleContext(roleToLoad);
         }
-        
+
         if (personaName || contexts.personas.length > 0) {
           const personaToLoad = personaName || contexts.personas[0];
           await this.loadPersonaContext(personaToLoad);
         }
-        
+
         if (scenarioName || contexts.scenarios.length > 0) {
           const scenarioToLoad = scenarioName || contexts.scenarios[0];
           await this.loadScenarioContext(scenarioToLoad);
+        }
+
+        if (systemName || contexts.systems.length > 0) {
+          const systemToLoad = systemName || contexts.systems[0];
+          await this.loadSystemContext(systemToLoad);
         }
         
         this.isInitialized = true;
@@ -177,11 +191,12 @@ export class ClaudeService {
       
       const options: ContextOptions = await response.json();
       console.log('Loaded context options:', options);
-      
+
       // Update class state
       this.availableRoles = options.roles;
       this.availablePersonas = options.personas;
       this.availableScenarios = options.scenarios;
+      this.availableSystems = options.systems;
       
       return options;
     } catch (error) {
@@ -190,7 +205,8 @@ export class ClaudeService {
       const fallbackOptions: ContextOptions = {
         roles: ['system_manager', 'meraki_expert'],
         personas: ['entry_network_admin', 'network_designer'],
-        scenarios: ['high_cpu_load', 'corporate_campus']
+        scenarios: ['high_cpu_load', 'corporate_campus'],
+        systems: ['data_analytics', 'security_audit']
       };
       
       console.log('Using fallback values due to error:', fallbackOptions);
@@ -198,6 +214,7 @@ export class ClaudeService {
       this.availableRoles = fallbackOptions.roles;
       this.availablePersonas = fallbackOptions.personas;
       this.availableScenarios = fallbackOptions.scenarios;
+      this.availableSystems = fallbackOptions.systems;
       
       return fallbackOptions;
     }
@@ -256,11 +273,11 @@ export class ClaudeService {
       }
       this.scenarioContext = await response.text();
       console.log(`Loaded scenario context for ${scenarioName} (${this.scenarioContext.length} chars)`);
-      
+
       // Force reset initialization status so next message will rebuild the system prompt
       this.isInitialized = true;
       console.log('Scenario context updated, future messages will use new system prompt');
-      
+
       return this.scenarioContext;
     } catch (error) {
       console.error(`Error loading scenario context for ${scenarioName}:`, error);
@@ -269,11 +286,34 @@ export class ClaudeService {
     }
   }
 
+  async loadSystemContext(systemName: string) {
+    try {
+      console.log(`ClaudeService: Loading system context for ${systemName}`);
+      const response = await fetch(`/context/system/${systemName}.md`);
+      if (!response.ok) {
+        throw new Error(`Failed to load system context for ${systemName}`);
+      }
+      this.systemContext = await response.text();
+      console.log(`Loaded system context for ${systemName} (${this.systemContext.length} chars)`);
+
+      // Force reset initialization status so next message will rebuild the system prompt
+      this.isInitialized = true;
+      console.log('System context updated, future messages will use new system prompt');
+
+      return this.systemContext;
+    } catch (error) {
+      console.error(`Error loading system context for ${systemName}:`, error);
+      this.systemContext = ''; // Reset to empty on error
+      return '';
+    }
+  }
+
   public hasLoadedContexts(): boolean {
-    return this.isInitialized && 
+    return this.isInitialized &&
            this.roleContext.length > 0 &&
            this.personaContext.length > 0 &&
            this.scenarioContext.length > 0 &&
+           this.systemContext.length > 0 &&
            this.generalInstructions.length > 0;  // Include general instructions in check
   }
 
@@ -283,6 +323,9 @@ export class ClaudeService {
 ${this.generalInstructions}
 
 ${this.roleContext}
+
+System Context:
+${this.systemContext}
 
 User Persona:
 ${this.personaContext}
@@ -305,6 +348,7 @@ ${this.scenarioContext}
     console.log("Role context (first 100 chars):", this.roleContext.substring(0, 100));
     console.log("Persona context (first 100 chars):", this.personaContext.substring(0, 100));
     console.log("Scenario context (first 100 chars):", this.scenarioContext.substring(0, 100));
+    console.log("System context (first 100 chars):", this.systemContext ? this.systemContext.substring(0, 100) : "Not set");
     console.log("================================================");
 
     const systemPrompt = this.buildSystemPrompt();
@@ -330,11 +374,13 @@ ${this.scenarioContext}
     const roleContextExists = this.roleContext && this.roleContext.length > 0;
     const scenarioContextExists = this.scenarioContext && this.scenarioContext.length > 0;
     const personaContextExists = this.personaContext && this.personaContext.length > 0;
-    
+    const systemContextExists = this.systemContext && this.systemContext.length > 0;
+
     console.log('General instructions exist:', generalInstructionsExists);
     console.log('Role context exists:', roleContextExists);
     console.log('Persona context exists:', personaContextExists);
     console.log('Scenario context exists:', scenarioContextExists);
+    console.log('System context exists:', systemContextExists);
     console.log('System prompt length:', systemPrompt.length);
     console.log('System prompt first 100 chars:', systemPrompt.substring(0, 100) + '...');
     
@@ -375,7 +421,8 @@ ${this.scenarioContext}
           general: this.generalInstructions.substring(0, 30) + '...',
           role: this.roleContext.substring(0, 30) + '...',
           persona: this.personaContext.substring(0, 30) + '...',
-          scenario: this.scenarioContext.substring(0, 30) + '...'
+          scenario: this.scenarioContext.substring(0, 30) + '...',
+          system: this.systemContext ? this.systemContext.substring(0, 30) + '...' : 'Not set'
         }
       });
       

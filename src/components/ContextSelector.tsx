@@ -7,15 +7,18 @@ export interface ContextSelectorProps {
     roles: string[];
     personas: string[];
     scenarios: string[];
+    systems: string[];
   };
   availableModels: ModelOption[];
   selectedRole: string;
   selectedPersona: string;
   selectedScenario: string;
+  selectedSystem: string;
   selectedModel: string;
   onRoleChange: (role: string) => void;
   onPersonaChange: (persona: string) => void;
   onScenarioChange: (scenario: string) => void;
+  onSystemChange: (system: string) => void;
   onModelChange: (model: string) => void;
 }
 
@@ -25,10 +28,12 @@ export function ContextSelector({
   selectedRole,
   selectedPersona,
   selectedScenario,
+  selectedSystem,
   selectedModel,
   onRoleChange,
   onPersonaChange,
   onScenarioChange,
+  onSystemChange,
   onModelChange
 }: ContextSelectorProps) {
   const handleRoleChange = (e: ChangeEvent<HTMLSelectElement>) => {
@@ -42,7 +47,11 @@ export function ContextSelector({
   const handleScenarioChange = (e: ChangeEvent<HTMLSelectElement>) => {
     onScenarioChange(e.target.value);
   };
-  
+
+  const handleSystemChange = (e: ChangeEvent<HTMLSelectElement>) => {
+    onSystemChange(e.target.value);
+  };
+
   const handleModelChange = (e: ChangeEvent<HTMLSelectElement>) => {
     onModelChange(e.target.value);
   };
@@ -51,8 +60,8 @@ export function ContextSelector({
     <div className={styles.contextSelectorContainer}>
       <div className={styles.selectorGroup}>
         <label>Role:</label>
-        <select 
-          value={selectedRole} 
+        <select
+          value={selectedRole}
           onChange={handleRoleChange}
           disabled={availableContexts.roles.length === 0}
         >
@@ -65,11 +74,11 @@ export function ContextSelector({
           )}
         </select>
       </div>
-      
+
       <div className={styles.selectorGroup}>
         <label>Persona:</label>
-        <select 
-          value={selectedPersona} 
+        <select
+          value={selectedPersona}
           onChange={handlePersonaChange}
           disabled={availableContexts.personas.length === 0}
         >
@@ -82,11 +91,28 @@ export function ContextSelector({
           )}
         </select>
       </div>
-      
+
+      <div className={styles.selectorGroup}>
+        <label>System:</label>
+        <select
+          value={selectedSystem}
+          onChange={handleSystemChange}
+          disabled={availableContexts.systems.length === 0}
+        >
+          {availableContexts.systems.length === 0 ? (
+            <option value="">No system contexts available</option>
+          ) : (
+            availableContexts.systems.map(system => (
+              <option key={system} value={system}>{system}</option>
+            ))
+          )}
+        </select>
+      </div>
+
       <div className={styles.selectorGroup}>
         <label>Scenario:</label>
-        <select 
-          value={selectedScenario} 
+        <select
+          value={selectedScenario}
           onChange={handleScenarioChange}
           disabled={availableContexts.scenarios.length === 0}
         >
@@ -99,7 +125,7 @@ export function ContextSelector({
           )}
         </select>
       </div>
-      
+
       <hr className={styles.divider} />
       
       <div className={styles.selectorGroup}>
