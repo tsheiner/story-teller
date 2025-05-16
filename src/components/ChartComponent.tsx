@@ -54,6 +54,31 @@ export function ChartComponent({ config }: ChartComponentProps) {
   }, []);
 
   // Convert our simplified config format to Highcharts options
+  // const chartOptions: Highcharts.Options = {
+  //   chart: {
+  //     // If it's a timeseries type, use 'line' type for Highcharts but with special time configuration
+  //     type: config.type === 'timeseries' ? 'line' : config.type,
+  //     animation: true,
+  //     className: 'chart-container'
+  //   },
+  //   title: {
+  //     text: config.title
+  //   },
+  //   xAxis: {
+  //     title: {
+  //       text: config.xAxis.title
+  //     },
+  //     categories: config.xAxis.categories || undefined,
+  //     // For timeseries charts, ensure we use category type and properly display the time labels
+  //     type: config.type === 'timeseries' ? 'category' : undefined,
+  //     // Add explicit label formatting for better time display
+  //     labels: config.type === 'timeseries' ? {
+  //       style: {
+  //         fontSize: '12px'
+  //       }
+  //     } : undefined
+  //   },
+  // Convert our simplified config format to Highcharts options
   const chartOptions: Highcharts.Options = {
     chart: {
       // If it's a timeseries type, use 'line' type for Highcharts but with special time configuration
@@ -68,14 +93,17 @@ export function ChartComponent({ config }: ChartComponentProps) {
       title: {
         text: config.xAxis.title
       },
-      categories: config.xAxis.categories || undefined,
-      // For timeseries charts, ensure we use category type and properly display the time labels
-      type: config.type === 'timeseries' ? 'category' : undefined,
-      // Add explicit label formatting for better time display
+      // Ensure categories are always used when provided
+      categories: config.xAxis.categories,
+      // For timeseries charts, use category type to display custom labels
+      type: (config.type === 'timeseries' && config.xAxis.categories) ? 'category' : undefined,
+      // Add explicit label formatting for time display
       labels: config.type === 'timeseries' ? {
         style: {
           fontSize: '12px'
-        }
+        },
+        rotation: 0, 
+        align: 'right'
       } : undefined
     },
     yAxis: {
