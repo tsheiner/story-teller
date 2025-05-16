@@ -177,6 +177,51 @@ Use the following syntax for charts:
 - pie
 - area
 - scatter
+- **timeseries** (for time-based data with proper time axis)
+
+#### When to Use Time-Series Charts
+
+**Use `timeseries` instead of `line` for any time-based data:**
+- Performance metrics over time (CPU, memory, latency, etc.)
+- Network traffic over time periods
+- Any measurement that changes over time
+- When showing data points at specific times/dates
+
+**Time-Series Format:**
+{{chart:timeseries
+title: Application Latency (Last 12 Hours)
+xAxis: Time
+yAxis: Response Time (ms)
+categories: ["06:00", "08:00", "10:00", "12:00", "14:00", "16:00"]
+data: [
+{name: "Web Service", values: [85, 90, 115, 150, 190, 220]},
+{name: "Database", values: [35, 38, 42, 50, 65, 85]}
+]
+}}
+
+**Key Difference**: 
+- Use `line` for non-time data (like comparing different servers or services)
+- Use `timeseries` for data that changes over time periods
+
+**Key Points:**
+- Use the `categories` field to specify actual timestamps
+- Timestamps can be in formats like "YYYY-MM-DD HH:MM" or "HH:MM" or "Mon", "Tue", etc.
+- The number of timestamps in `categories` must match the number of values in each data series
+- This enables proper time-series rendering with correctly spaced X-axis labels
+
+**Examples:**
+
+Hourly data:
+categories: ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00"]
+
+Daily data:
+categories: ["2024-01-15", "2024-01-16", "2024-01-17", "2024-01-18", "2024-01-19"]
+
+Weekly data:
+categories: ["Mon", "Tue", "Wed", "Thu", "Fri"]
+
+**Important**: Always include the `categories` field for time-series charts to ensure proper time-based X-axis labeling instead of just sequential numbering.
+
 
 #### Chart Examples
 
@@ -205,6 +250,7 @@ Use the following syntax for charts:
   ]
 }}
 ```
+
 
 ### Data Table Creation
 

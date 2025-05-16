@@ -5,7 +5,7 @@ import { ChartConfig } from "../components/ChartComponent";
 const TABLE_PATTERN = /\{\{\s*table\s*:\s*([\s\S]*?)\s*\}\}/g;
 
 // Define a regex pattern to match chart commands
-const CHART_PATTERN = /{{chart:(line|bar|column|pie|area|scatter)(?:\s*\n|\s+)([\s\S]*?)}}/g;
+const CHART_PATTERN = /{{chart:(line|bar|column|pie|area|scatter|timeseries)(?:\s*\n|\s+)([\s\S]*?)}}/g;
 
 // Define interfaces for tables
 export interface TableConfig {
@@ -162,14 +162,54 @@ export class ChartParserService {
             const categoriesText = trimmedValue.startsWith('[') && trimmedValue.endsWith(']')
               ? trimmedValue
               : `[${trimmedValue}]`;
-            config.xAxis.categories = JSON.parse(categoriesText.replace(/(\w+):/g, '"$1":'));
+
+            console.log('Parsing categories:', categoriesText);
+
+            // For escaped double quotes in AI response like \"06:00\"
+            let cleanedText = categoriesText;
+            if (cleanedText.includes('\\"')) {
+              // Replace escaped quotes with actual quotes for parsing
+              cleanedText = cleanedText.replace(/\\"/g, '"');
+            }
+
+            try {
+              // First try to parse directly
+              config.xAxis.categories = JSON.parse(cleanedText);
+            } catch (directError) {
+              // If direct parsing fails, try the regex replacement approach
+              config.xAxis.categories = JSON.parse(cleanedText.replace(/(\w+):/g, '"$1":'));
+            }
+
+            console.log('Parsed categories result:', config.xAxis.categories);
           } catch (error) {
             console.error('Error parsing categories:', error);
+            console.error('Categories text was:', trimmedValue);
+
+            // Fallback: try to parse manually if JSON parsing fails
+            try {
+              // Strip brackets and quotes and split by commas
+              const parts = trimmedValue.replace(/[\[\]"\\]/g, '').split(',');
+              const categories = parts.map(p => p.trim()).filter(p => p.length > 0);
+              console.log('Fallback parsed categories:', categories);
+              if (categories.length > 0) {
+                config.xAxis.categories = categories;
+              }
+            } catch (fallbackError) {
+              console.error('Fallback categories parsing also failed:', fallbackError);
+            }
           }
         }
       }
     }
-    
+
+    // Handle timeseries chart type
+    if (chartType === 'timeseries') {
+      // For timeseries, make sure we have categories for the time axis
+      if (!config.xAxis.categories || config.xAxis.categories.length === 0) {
+        console.warn('Time series chart is missing categories for time axis');
+      }
+    }
+
     return config;
   }
   
