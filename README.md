@@ -1,13 +1,20 @@
-# Storyteller: Designing Conversations in 3 Dimensions
+# Storyteller: A Conversational Design Tool
 
-This application enables you to prototype AI experiences by controlling 3 inputs: 
+This application enables you to prototype AI experiences by controlling 4 inputs: 
 1. __model role:__ what role the model should play in your experience? what kind of expert, with what kinds of capabilities?
 2. __persona:__ who is the model talking to?
 3. __scenario__: what are the initial conditions for the conversation?
+4. __system__: what kind of underlying system configuration is being managed or monitored?
 
 ## Overview
 
-The application provides an interactive chat interface with an AI assistant, enhanced with a workspace panel for visualizations and detailed system information. The user defines the dimensions of the conversation by selecting the model's role, the persona it interacts with, and the scenario that sets the context. The AI assistant adapts its behavior based on these inputs, enabling tailored interactions for various use cases.
+The application provides an interactive chat interface with an AI assistant, enhanced with a workspace panel for visualizations and detailed system information. The user defines the dimensions of the conversation by selecting the model's role, the persona it interacts with, the scenario that sets the context, and the system being managed. The AI assistant adapts its behavior based on these inputs, enabling tailored interactions for various use cases.
+
+Each dimension can be easily customized by adding or removing markdown files in their respective directories within the `public/context/` folder:
+- `roles/`: Add new AI roles by creating markdown files defining their behavior and capabilities
+- `personas/`: Add new user personas by creating markdown files describing who the AI is talking to
+- `scenarios/`: Add new scenarios by creating markdown files that describe specific situations or incidents
+- `system/`: Add new system configurations by creating markdown files that define the underlying environment
 
 ### Key Features
 - Persistent chat interface with the AI assistant
@@ -25,10 +32,12 @@ Key components:
 - `ChatInterface`: Manages chat interactions with the AI assistant
 - `Workspace`: Displays system information and visualizations, always visible
 - `UnifiedLayout`: Maintains persistent chat while integrating the workspace panel
+- `ContextSelector`: Allows users to select the dimensions of the conversation
 - Context files (in `public/context/`):
   - `roles/`: Role definitions: Define the AI's behavior and capabilities
-  - `personas/`:Persona definitions: Define who the AI is talking to
-  - `scenarios/`:Scenarios: Describe specific system states or incidents
+  - `personas/`: Persona definitions: Define who the AI is talking to
+  - `scenarios/`: Scenarios: Describe specific system states or incidents
+  - `system/`: System definitions: Describe the underlying system configuration
 
 ## Setup and Running
 
@@ -54,12 +63,3 @@ Key components:
 
 The application will be available at http://localhost:5173 (or another port if 5173 is in use).
 
-## Development Notes
-
-- The chat interface maintains state even when toggling between views
-- Role, persona, and scenario contexts are loaded from markdown files in `src/context/`
-- The workspace panel is always visible and can display visualizations or detailed information based on the conversation context
-
-## Environment Variables
-
-- `VITE_ANTHROPIC_API_KEY`: Your Anthropic API key for AI assistant access
