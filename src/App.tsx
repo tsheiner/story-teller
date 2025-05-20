@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import 'bootstrap/dist/css/bootstrap.min.css'
 import './App.css'
-import { ChatInterface } from './components/ChatInterface'
+import { ChatInterface, ChatInterfaceRef } from './components/ChatInterface'
 import { Workspace } from './components/Workspace'
 import { UnifiedLayout } from './layouts/UnifiedLayout'
 import { ContextSelector } from './components/ContextSelector'
@@ -35,8 +35,9 @@ function App() {
   const [selectedSystem, setSelectedSystem] = useState('');
   const [selectedModel, setSelectedModel] = useState('');
   
-  // Reference to ClaudeService
+  // References
   const claudeService = useRef(new ClaudeService());
+  const chatInterfaceRef = useRef<ChatInterfaceRef>(null);
   
   // Load available contexts and restore selections
   useEffect(() => {
@@ -82,6 +83,12 @@ function App() {
   const handleRoleChange = async (role: string) => {
     console.log(`App: Changing role to ${role}`);
     setSelectedRole(role);
+
+    // Clear conversation history when context changes
+    if (chatInterfaceRef.current) {
+      chatInterfaceRef.current.resetConversation();
+    }
+
     // Load the new context and rebuild the system prompt
     await claudeService.current.loadRoleContext(role);
     StorageService.saveSelectedRole(role);
@@ -91,6 +98,12 @@ function App() {
   const handlePersonaChange = async (persona: string) => {
     console.log(`App: Changing persona to ${persona}`);
     setSelectedPersona(persona);
+
+    // Clear conversation history when context changes
+    if (chatInterfaceRef.current) {
+      chatInterfaceRef.current.resetConversation();
+    }
+
     // Load the new context and rebuild the system prompt
     await claudeService.current.loadPersonaContext(persona);
     StorageService.saveSelectedPersona(persona);
@@ -100,6 +113,12 @@ function App() {
   const handleScenarioChange = async (scenario: string) => {
     console.log(`App: Changing scenario to ${scenario}`);
     setSelectedScenario(scenario);
+
+    // Clear conversation history when context changes
+    if (chatInterfaceRef.current) {
+      chatInterfaceRef.current.resetConversation();
+    }
+
     // Load the new context and rebuild the system prompt
     await claudeService.current.loadScenarioContext(scenario);
     StorageService.saveSelectedScenario(scenario);
@@ -109,6 +128,12 @@ function App() {
   const handleSystemChange = async (system: string) => {
     console.log(`App: Changing system to ${system}`);
     setSelectedSystem(system);
+
+    // Clear conversation history when context changes
+    if (chatInterfaceRef.current) {
+      chatInterfaceRef.current.resetConversation();
+    }
+
     // Load the new context and rebuild the system prompt
     await claudeService.current.loadSystemContext(system);
     StorageService.saveSelectedSystem(system);
@@ -135,7 +160,8 @@ function App() {
         chatPanel={
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             <div style={{ flex: 1, overflow: 'auto' }}>
-              <ChatInterface 
+              <ChatInterface
+                ref={chatInterfaceRef}
                 claudeService={claudeService.current}
                 onToggleContext={toggleContext}
                 showContext={showContext}
