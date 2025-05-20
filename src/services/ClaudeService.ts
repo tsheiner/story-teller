@@ -318,20 +318,31 @@ export class ClaudeService {
   }
 
   private buildSystemPrompt(): string {
-    // Construct system prompt with all context types
     return `
-${this.generalInstructions}
-
+# YOU MUST PLAY THIS ROLE PERFECTLY
 ${this.roleContext}
 
-System Context:
-${this.systemContext}
-
-User Persona:
+# YOU ARE TALKING TO THIS PERSON
 ${this.personaContext}
 
-Current Scenario:
+# THIS IS THE CURRENT SITUATION
 ${this.scenarioContext}
+
+# THIS IS THE SYSTEM CONFIGURATION
+${this.systemContext}
+
+# GENERAL INSTRUCTIONS
+${this.generalInstructions}
+
+FORMATTING INSTRUCTION:
+- DO NOT start your responses with phrases like "smiles warmly", "extends hand", "speaks in a friendly tone" or ANY other action descriptions
+- The first word of EVERY response MUST be a normal greeting or direct answer - NEVER an action or description of your demeanor
+- Format example - INCORRECT: "smiles warmly Hello Sarah" ❌
+- Format example - CORRECT: "Hello Sarah" ✓
+- The user will not see any actions you describe - they only see your text
+- Violation of this instruction is the #1 most common mistake
+
+REMEMBER: Never break character. You are ${this.roleContext.split('\n')[0]} talking to ${this.personaContext.split('\n')[0]} about ${this.scenarioContext.split('\n')[0]}.
 `;
   }
 
@@ -468,11 +479,12 @@ ${this.scenarioContext}
     }
   }
   
-  // New method for streaming responses
+  // New method for streaming responses with abort capability
   async streamMessage(
-    messages: ChatMessage[], 
-    onChunk: (chunk: string) => void, 
-    onComplete: (fullResponse: string) => void
+    messages: ChatMessage[],
+    onChunk: (chunk: string) => void,
+    onComplete: (fullResponse: string) => void,
+    abortSignal?: AbortSignal
   ): Promise<void> {
     // Make sure context is loaded
     if (!this.isInitialized) {
@@ -514,28 +526,51 @@ ${this.scenarioContext}
       console.log(`📊 Stream request stats: ${apiMessages.length} messages, ${systemPrompt.length} chars in system prompt`);
       
       // Using the stream method from Anthropic SDK
-      const stream = await anthropic.messages.stream({
+      // Add abort signal to the stream config if provided
+      const streamOptions = {
         model: this.selectedModel,
         max_tokens: 1024,
         system: systemPrompt,
         messages: apiMessages
-      });
+      };
+
+      // Create the stream with the abort signal if it exists
+      const stream = await anthropic.messages.stream(
+        streamOptions,
+        abortSignal ? { signal: abortSignal } : undefined
+      );
 
       let fullResponse = '';
       let responseModel = '';
 
       // Process each chunk as it arrives
-      for await (const chunk of stream) {
-        // Capture the model information when available
-        if (chunk.type === 'message_start') {
-          responseModel = chunk.message.model;
-          console.log(`%c🔄 STREAMING FROM MODEL: ${responseModel}`, 'color: blue; font-weight: bold;');
+      try {
+        for await (const chunk of stream) {
+          // Check if aborted
+          if (abortSignal?.aborted) {
+            console.log('Stream aborted by user');
+            break;
+          }
+
+          // Capture the model information when available
+          if (chunk.type === 'message_start') {
+            responseModel = chunk.message.model;
+            console.log(`%c🔄 STREAMING FROM MODEL: ${responseModel}`, 'color: blue; font-weight: bold;');
+          }
+
+          if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+            const textChunk = chunk.delta.text;
+            fullResponse += textChunk;
+            onChunk(textChunk);
+          }
         }
-        
-        if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-          const textChunk = chunk.delta.text;
-          fullResponse += textChunk;
-          onChunk(textChunk);
+      } catch (streamError) {
+        // Handle errors during streaming, including AbortError
+        if (abortSignal?.aborted) {
+          console.log('Stream aborted by user');
+        } else {
+          console.error('Error during stream processing:', streamError);
+          throw streamError; // Re-throw if not an abort error
         }
       }
       
@@ -545,6 +580,14 @@ ${this.scenarioContext}
       console.log(`🕒 Response time: ${new Date().toISOString()}`);
       onComplete(fullResponse);
     } catch (error) {
+      // Don't show error message for aborted requests
+      if (abortSignal?.aborted) {
+        console.log('Request was aborted by user, returning gracefully');
+        onComplete(fullResponse || ''); // Return any partial response
+        return;
+      }
+
+      // Handle other errors normally
       console.error('Error in streaming from Claude API:', error);
       let errorMessage = 'Unknown error';
       if (error && typeof error === 'object' && 'message' in error) {
